@@ -127,6 +127,7 @@ struct Lyrics{
 	double timeJust,timeUntil;	/* ちょうどの時間、その文字以前だけを打つときに、最も遅い時間 */
 	bool isBlockStart;	/* 1音節（タイミング判定をするかたまり）の最初 */
 	bool isTyped;	/* すでに打たれたか */
+	bool isScoringTarget;	/* 現在タイミング判定をする対象であるか */
 };
 
 /* ============================================================ */
@@ -246,6 +247,7 @@ void CTyping::load(const char *fileName){
 		}
 		Lyrics ly;
 		ly.isBlockStart = true;
+		ly.isScoringTarget = true;
 		for(char *ptr=bufLast; *ptr!='\0'; ptr++){
 			ly.ch = *ptr;
 			ly.timeJust = timeLast;
@@ -253,12 +255,14 @@ void CTyping::load(const char *fileName){
 //printf("%c ,%lf,%lf\n",ly.ch,ly.timeJust,ly.timeUntil);
 			if(ly.ch == ' '){
 				ly.isTyped = true;	/* 区切れの文字はすでに打ったという扱い */
+				ly.isScoringTarget = false;	/* 区切りを「打って得点を得る」ことはできない */
 			}else{
 				ly.isTyped = false;
 			}
 			m_lyrics.push_back(ly);
 			
 			ly.isBlockStart = false;	/* 最初の文字のみを true にするため */
+			ly.isScoringTarget = false;
 		}
 //printf("]\n");
 		timeLast = time;
@@ -272,6 +276,7 @@ void CTyping::load(const char *fileName){
 	ly.timeUntil = INFTY;
 	ly.isBlockStart = true;
 	ly.isTyped = true;
+	ly.isScoringTarget = false;
 	m_lyrics.push_back(ly);
 	
 	/* ' 'なら1つ進むことへの対策として、'\n'を追加しておく */
@@ -441,13 +446,21 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 				}
 				if(input(tmpTypeBuffer, tmpLen, tmpLyricsPosition, time)){
 				/* 再帰の結果打てることが分かったとき */
-					if(typeBufferLen == 1 && (*lyricsPosition).isBlockStart){
-					/* 新しい音節の打ち始め */				/* 【あとでちゃんと確認！！】 */
+					if(typeBufferLen >= 1 && (*lyricsPosition).isScoringTarget){
+					/* 新しい音節の打ち始め(=得点対象になっている) */
 						m_score += scoreAccuracy(time - (*lyricsPosition).timeJust);
 						/* ちょうどのタイミングとのずれから計算した得点を与える。 */
+						(*lyricsPosition).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
 					}
 					/* 「っ」の処理をあとでなんか考える！ */
-					
+					if(typeBufferLen >= 2 && lyricsPosition + 2 < tmpLyricsPosition &&
+							(*(lyricsPosition + 2)).isScoringTarget){
+					/* 2文字打って、2バイト先(日本語の1文字先)が今回一度に打てる範囲で、さらに採点対象である */
+					/* つまり、「っか」における"kk"の時点で「か」が採点される。 */
+						m_score += scoreAccuracy(time - (*(lyricsPosition + 2)).timeJust);
+						/* ちょうどのタイミングとのずれから計算した得点を与える。 */
+						(*(lyricsPosition + 2)).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
+					}
 					if((*i).match(typeBuffer)){	/* 完全一致 */
 						/* 変換された歌詞の分だけ得点を与える */
 						m_score += scoreTyping(lyricsPosition, tmpLyricsPosition);
@@ -555,22 +568,19 @@ void CTyping::draw(){
 		}while(!(*j).isBlockStart);
 		}
 		buf[len] = '\0';
-		int Color;
 		if(isCurrent){
-			if(!(*i).isTyped && m_typeBufferLen == 0){
-			/* 先頭が打ち切られても打ちかけられてもいない */
-				Color = GetColor(255, 0, 0);	/* やっぱり赤色 */
-			}else{
-				Color = GetColor(0, 0, 255);	/* 今打っている途中である */
-				int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-				DrawStringToHandle(100 - strWidth / 2, 250, buf,
-					GetColor(255, 255, 255), m_fontHandleBig);	/* 打っている文字は下にも出す */
-			}
-		}else{
-			Color = GetColor(255, 0, 0);	/* 基本的に赤色 */
+			int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
+			DrawStringToHandle(100 - strWidth / 2, 250, buf,
+				GetColor(255, 255, 255), m_fontHandleBig);	/* 打っている文字は下にも出す */
 		}
 		if(len == 0){	/* すべてタイプされていた */
 			continue;
+		}
+		int Color;
+		if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
+			Color = GetColor(255, 0, 0);
+		}else{
+			Color = GetColor(0, 0, 255);
 		}
 		DrawCircle(pos, 200, 30, Color, TRUE);	/* 流れる円 */
 		DrawCircle(pos, 200, 30, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
