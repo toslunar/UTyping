@@ -11,7 +11,7 @@ using namespace std;
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
 #define SEC_FAIR 0.1
-#define SEC_POOR 0.5
+#define SEC_POOR 0.25
 
 #define SCORE_EXCELLENT 1500
 #define SCORE_GOOD 1000
@@ -132,6 +132,14 @@ struct Lyrics{
 
 /* ============================================================ */
 
+struct LyricsKanji{	/* 表示される歌詞 */
+	string str;	/* 歌詞 */
+	double timeBegin;	/* 表示が始まる時間 */
+	double timeEnd;	/* 表示が終わる時間 */
+};
+
+/* ============================================================ */
+
 class CTyping{
 public:
 	CTyping();
@@ -157,6 +165,9 @@ private:
 	vector<Lyrics>::iterator m_lyricsPosition;
 	char m_typeBuffer[5];
 	int m_typeBufferLen;
+	
+	vector<LyricsKanji> m_lyricsKanji;
+	vector<LyricsKanji>::iterator m_lyricsKanjiPosition;
 	
 	bool m_started;
 	bool m_finished;
@@ -222,17 +233,15 @@ void CTyping::load(const char *fileName){
 	if(fp == NULL){
 		throw __LINE__;
 	}
-	if(fgets(m_musicFileName, sizeof(m_musicFileName), fp) == NULL){	/* 再生する音楽ファイル名 */
-		throw __LINE__;
-	}
-	int len = strlen(m_musicFileName);
-	if(m_musicFileName[len - 1] == '\n'){
-		m_musicFileName[len - 1] = '\0';
-	}
 	
-	/* 歌詞を読み込む */
+	/* 読み込む前に全消去 */
 	m_lyrics.clear();
+	m_lyricsKanji.clear();
+	strcpy(m_musicFileName, "");
 	
+	/* 読み込み開始 */
+
+#if 0
 	/* 番兵として最初に' ',0を追加しておく */
 	{
 		Lyrics ly;
@@ -244,22 +253,68 @@ void CTyping::load(const char *fileName){
 		ly.isScoringTarget = false;
 		m_lyrics.push_back(ly);
 	}
+#endif
 	
+	char tmpBuf[256];
 	char buf[256], bufLast[256];
 	strcpy(bufLast,"");
 	double time, timeLast;
 	bool flag = true;
 	while(flag){
-		if(fgets(buf,sizeof(buf),fp) == NULL){
+		if(fgets(tmpBuf,sizeof(tmpBuf),fp) == NULL){
 			flag = false;
 			time = INFTY;
 		}else{
-			int n = sscanf(buf, "%lf%s", &time, buf);
-			if(n <= 0){	/* いらない行 */
-				continue;
+			/* 改行コードは消す */
+			int len = strlen(tmpBuf);
+			if(tmpBuf[len - 1] == '\n'){
+				tmpBuf[len - 1] = '\0';
 			}
-			if(n == 1){	/* 歌詞の切れ目 */
+			int n;
+			switch(tmpBuf[0]){
+			case '+':	/* 打つ歌詞 */
+				n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
+				if(n < 2){
+					throw __LINE__;
+				}
+				break;
+			case '*':	/* 表示する歌詞 */
+				{
+					char *ptr = strtok(tmpBuf + 1, " \t\n");	/* スペースで区切られるまでの部分を取り出す */
+					if(ptr == NULL){
+						throw __LINE__;
+					}
+					n = sscanf(ptr, "%lf", &time);	/* 時刻を読む */
+					if(n < 1){
+						throw __LINE__;
+					}
+					ptr = strtok(NULL, "");	/* 残りの部分を取り出す */
+					LyricsKanji lk;
+					lk.str = string(ptr);
+					lk.timeBegin = time;
+					lk.timeEnd = INFTY;	/* 終わりが設定されなければ、表示され続ける */
+					m_lyricsKanji.push_back(lk);
+				}
+				continue;	/* 未実装 */
+			case '/':	/* 区切り */
+				n = sscanf(tmpBuf + 1, "%lf", &time);
+				if(n < 1){
+					throw __LINE__;
+				}
 				strcpy(buf, " ");
+				
+				if(!m_lyricsKanji.empty()){	/* 表示する歌詞が存在している */
+					LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* そのなかで最後のものを操作 */
+					if(lk.timeEnd == INFTY){	/* 終了時刻が設定されていなければ、現在に設定 */
+						lk.timeEnd = time;
+					}
+				}
+				break;
+			case '@':
+				strcpy(m_musicFileName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
+				continue;
+			default:
+				continue;
 			}
 //printf("%s(%3.1f)",buf,time);
 		}
@@ -287,7 +342,7 @@ void CTyping::load(const char *fileName){
 		strcpy(bufLast, buf);
 	}
 //printf("\n");
-	/* 番兵として最後に' ',INFTYを追加しておく */
+	/* 打つ歌詞の番兵として最後に' ',INFTYを追加しておく */
 	{
 		Lyrics ly;
 		ly.ch = ' ';
@@ -303,11 +358,18 @@ void CTyping::load(const char *fileName){
 		m_lyrics.push_back(ly);
 	}
 	
-	// /* ' 'で区切った歌詞のNextとかも表示したいので、もうひとつ追加しておく */
-	// m_lyrics.push_back(ly);
+	/* 表示する歌詞の番兵として、"",INFTYを追加 */
+	{
+		LyricsKanji lk;
+		lk.str = "";
+		lk.timeBegin = INFTY;
+		lk.timeEnd = INFTY;
+		m_lyricsKanji.push_back(lk);
+	}
 	
 	/* 現在打っている歌詞の位置 */
 	m_lyricsPosition = m_lyrics.begin();
+	m_lyricsKanjiPosition = m_lyricsKanji.begin();
 	
 	/* キー入力を初期化 */
 	m_typeBufferLen = 0;
@@ -550,6 +612,15 @@ int CTyping::scoreAccuracy(double timeDiff){
 	return score;
 }
 
+#define Y_INFO 10
+#define Y_LYRICS_KANJI 70
+#define Y_LYRICS_KANJI_NEXT 110
+#define Y_ACCURACY 170
+#define Y_CIRCLE 260
+#define R_CIRCLE 30
+#define Y_LYRICS 310
+#define Y_BUFFER 360
+
 void CTyping::draw(){
 	double time;
 	if(m_finished){	/* 終わっている */
@@ -565,10 +636,11 @@ void CTyping::draw(){
 	}else{
 		time = (GetNowCount() - m_timeStart) / 1000.0;	/* 開始時刻からの経過秒を取得 */
 	}
-	DrawFormatStringToHandle(10, 10, GetColor(255, 255, 255), m_fontHandleNormal,
+	DrawFormatStringToHandle(10, Y_INFO, GetColor(255, 255, 255), m_fontHandleNormal,
 		"得点: %10d, %10d コンボ", m_score, m_combo);
 	//printf("%7.3f ", time);
 	
+#if 0
 	{	/* 現在の歌詞の大きなかたまりを表示 */
 		vector<Lyrics>::iterator i = m_lyricsPosition;
 		while((*i).ch != ' '){	/* ブロックの最初でなければ戻る */
@@ -585,6 +657,24 @@ void CTyping::draw(){
 				GetColor(255, 255, 255), m_fontHandleNormal);
 		}
 	}
+#endif
+	
+	/* 表示する歌詞を出力 */
+	while(time >= (*m_lyricsKanjiPosition).timeEnd){	/* 表示終了しているなら次に進む */
+		m_lyricsKanjiPosition++;
+	}
+	if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
+		DrawFormatStringToHandle(10, Y_LYRICS_KANJI,
+			GetColor(255, 255, 255), m_fontHandleNormal,
+			"%s", (*m_lyricsKanjiPosition).str.c_str());	/* 出力 */
+		DrawFormatStringToHandle(10, Y_LYRICS_KANJI_NEXT,
+			GetColor(255, 255, 255), m_fontHandleNormal,
+			"Next: %s", (*(m_lyricsKanjiPosition + 1)).str.c_str());	/* Nextを出力 */
+	}else{
+		DrawFormatStringToHandle(10, Y_LYRICS_KANJI_NEXT,
+			GetColor(255, 255, 255), m_fontHandleNormal,
+			"Next: %s", (*m_lyricsKanjiPosition).str.c_str());	/* Nextを出力 */
+	}
 	
 	for(vector<Lyrics>::iterator i = m_lyrics.end() - 1; i != m_lyrics.begin() - 1; i--){
 		if(!(*i).isBlockStart){	/* 音節の最初でないなら無視 */
@@ -595,13 +685,13 @@ void CTyping::draw(){
 		}
 		bool isCurrent = false;	/* 今打っているものかどうか */
 		{
-		vector<Lyrics>::iterator j = i;
-		do{	/* ブロック内の未タイプの文字をbufに格納 */
-			if(j == m_lyricsPosition){	/* 現在打っている場所を含むなら */
-				isCurrent = true;
-			}
-			j++;
-		}while(!(*j).isBlockStart);
+			vector<Lyrics>::iterator j = i;
+			do{	/* ブロック内の未タイプの文字をbufに格納 */
+				if(j == m_lyricsPosition){	/* 現在打っている場所を含むなら */
+					isCurrent = true;
+				}
+				j++;
+			}while(!(*j).isBlockStart);
 		}
 		
 		double timeDiff = time - (*i).timeJust;	/* ちょうど打つ位置になってから何秒後か */
@@ -612,7 +702,9 @@ void CTyping::draw(){
 		/* isCurrentなら進ませるのは、現在打っている文字を表示するため */
 		
 		if((*i).ch == ' '){	/* 歌詞の切れ目 */
-			DrawCircle(pos, 200, 30, GetColor(128, 128, 128), false);	/* 灰色の円を流す */
+			if(timeDiff < 0.0){	/* 切れ目は判定位置に来るより前のときだけ表示 */
+				DrawCircle(pos, Y_CIRCLE, R_CIRCLE, GetColor(128, 128, 128), false);	/* 灰色の円を流す */
+			}
 		}
 		char buf[256];
 		int len = 0;
@@ -631,7 +723,7 @@ void CTyping::draw(){
 		buf[len] = '\0';
 		if(isCurrent){
 			int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-			DrawStringToHandle(100 - strWidth / 2, 250, buf,
+			DrawStringToHandle(100 - strWidth / 2, Y_LYRICS, buf,
 				GetColor(255, 255, 255), m_fontHandleBig);	/* 打っている文字は下にも出す */
 		}
 		if(len == 0){	/* すべてタイプされていた */
@@ -643,24 +735,24 @@ void CTyping::draw(){
 		}else{
 			Color = GetColor(0, 0, 255);
 		}
-		DrawCircle(pos, 200, 30, Color, TRUE);	/* 流れる円 */
-		DrawCircle(pos, 200, 30, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+		DrawCircle(pos, Y_CIRCLE, R_CIRCLE, Color, TRUE);	/* 流れる円 */
+		DrawCircle(pos, Y_CIRCLE, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
 		int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleNormal);
-		DrawStringToHandle(pos - strWidth / 2, 195, buf,
+		DrawStringToHandle(pos - strWidth / 2, Y_CIRCLE - 5, buf,
 			GetColor(255, 255, 255), m_fontHandleNormal);	/* 流れる円に書かれる文字 */
 	}
-	DrawCircle(100, 200, 30, GetColor(255, 255, 255), FALSE);	/* 判定位置の円 */
+	DrawCircle(100, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), FALSE);	/* 判定位置の円 */
 	
 	{	/* メッセージ表示 */
 		double timeDiff = time - m_textTime;
 		if(timeDiff <= 0.5){	/* メッセージ（優良可不可）が0.5秒間表示される */
-			int strLen = strlen(m_text);
+			//int strLen = strlen(m_text);
 			//int strWidth = GetDrawStringWidthToHandle(m_text, strLen, m_fontHandleBig);
 			int strX;
 			//strX = 100 - strWidth / 2;
-			strX = 100 - 30;	/* 円の左端 */
+			strX = 100 - R_CIRCLE;	/* 円の左端 */
 			int strY;	/* 表示されるY座標 */
-			strY = 120;
+			strY = Y_ACCURACY;
 			if(timeDiff < 0.05){	/* 0.05秒後には定位置 */
 				strY += ((0.05 - timeDiff) / 0.05) * 10;	/* 10だけ下から出てくる */
 			}
@@ -673,7 +765,7 @@ void CTyping::draw(){
 	m_typeBuffer[m_typeBufferLen] = '\0';
 	int strLen = strlen(m_typeBuffer);
 	int strWidth = GetDrawStringWidthToHandle(m_typeBuffer, strLen, m_fontHandleBig);
-	DrawStringToHandle(100 - strWidth / 2, 310, m_typeBuffer,
+	DrawStringToHandle(100 - strWidth / 2, Y_BUFFER, m_typeBuffer,
 		GetColor(255, 255, 255), m_fontHandleBig);
 }
 
@@ -707,7 +799,7 @@ void main1(){
 	vector<string> fileNameArray;
 	{
 		FILE *fp;
-		fp = fopen("list.txt", "r");
+		fp = fopen("UTyping_list.txt", "r");
 		if(fp == NULL){
 			throw __LINE__;
 		}
@@ -726,7 +818,7 @@ void main1(){
 		char ch = GetInputChar(TRUE);
 		switch(ch){
 		case CTRL_CODE_ESC:	/* 終了 */
-			return;
+			goto L1;
 		case CTRL_CODE_LEFT:	/* 1つ戻る。最初から1つ戻ると最後に。 */
 			if(fileNameArrayItr == fileNameArray.begin()){
 				fileNameArrayItr = fileNameArray.end();
@@ -760,6 +852,7 @@ void main1(){
 		
 		ScreenFlip();
 	}
+L1:
 	return;
 }
 
