@@ -8,10 +8,17 @@ using namespace std;
 
 #define INFTY 1000000000
 
+enum{
+PHASE_NOT_STARTED,
+PHASE_STARTED,
+PHASE_SCORE,
+PHASE_FINISHED,
+};
+
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
-#define SEC_FAIR 0.1
-#define SEC_POOR 0.25
+#define SEC_FAIR 0.10
+#define SEC_POOR 0.20
 
 #define SCORE_EXCELLENT 1500
 #define SCORE_GOOD 1000
@@ -21,8 +28,8 @@ using namespace std;
 #define SCORE_COMBO 10
 #define SCORE_COMBO_MAX 1000
 
-#define SCORE_TYPING 200
-/* タイピングで1バイト確定させるごとに */
+#define SCORE_TYPING 500
+/* タイピングで1文字確定させるごとに */
 
 /* ============================================================ */
 
@@ -123,12 +130,23 @@ CTrieNode *CTrieNode::find(const char *str){
 /* ============================================================ */
 
 struct Lyrics{
+public:
+	bool isJapanese1(); 
+public:
 	char ch;	/* 変換された文字（あいう、。～abc123+-など）の1バイト */
 	double timeJust,timeUntil;	/* ちょうどの時間、その文字以前だけを打つときに、最も遅い時間 */
 	bool isBlockStart;	/* 1音節（タイミング判定をするかたまり）の最初 */
 	bool isTyped;	/* すでに打たれたか */
 	bool isScoringTarget;	/* 現在タイミング判定をする対象であるか */
 };
+
+bool Lyrics::isJapanese1(){
+	if(this->ch & 0x80){
+		return true;
+	}else{
+		return false;
+	}
+}
 
 /* ============================================================ */
 
@@ -154,10 +172,11 @@ private:
 	void setText(const char *str, int color);
 	void setTime();
 	double getTime();
+	void finish();	/* 曲が終わったときの処理 */
 	bool input(char *typeBuffer, int &typeBufferLen,
 		vector<Lyrics>::iterator &lyricsPosition, double time);
-	int scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
-	int scoreAccuracy(double timeDiff);
+	void scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
+	void scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition);
 private:
 	CTrieNode m_trie;
 	
@@ -169,13 +188,22 @@ private:
 	vector<LyricsKanji> m_lyricsKanji;
 	vector<LyricsKanji>::iterator m_lyricsKanjiPosition;
 	
-	bool m_started;
-	bool m_finished;
+	int m_phase;
 	
 	int m_timeStart;
 	
 	int m_score;
+	int m_scoreTyping;	/* タイピングによる得点 */
+	int m_scoreAccuracy;	/* 精度による得点 */
 	int m_combo;
+	
+	int m_comboMax;
+	
+	int m_countExcellent;
+	int m_countGood;
+	int m_countFair;
+	int m_countPoor;
+	int m_countAll;
 	
 	char m_text[256];
 	int m_textColor;
@@ -239,6 +267,9 @@ void CTyping::load(const char *fileName){
 	m_lyricsKanji.clear();
 	strcpy(m_musicFileName, "");
 	
+	/* 歌詞のかたまりの数（=m_count○○の和の最大値）を数えるために0に */
+	m_countAll = 0;
+	
 	/* 読み込み開始 */
 
 #if 0
@@ -295,7 +326,7 @@ void CTyping::load(const char *fileName){
 					lk.timeEnd = INFTY;	/* 終わりが設定されなければ、表示され続ける */
 					m_lyricsKanji.push_back(lk);
 				}
-				continue;	/* 未実装 */
+				continue;
 			case '/':	/* 区切り */
 				n = sscanf(tmpBuf + 1, "%lf", &time);
 				if(n < 1){
@@ -333,6 +364,10 @@ void CTyping::load(const char *fileName){
 				ly.isTyped = false;
 			}
 			m_lyrics.push_back(ly);
+			
+			if(ly.isScoringTarget){	/* 判定のある歌詞の数を数える */
+				m_countAll++;
+			}
 			
 			ly.isBlockStart = false;	/* 最初の文字のみを true にするため */
 			ly.isScoringTarget = false;
@@ -374,23 +409,42 @@ void CTyping::load(const char *fileName){
 	/* キー入力を初期化 */
 	m_typeBufferLen = 0;
 	
-	/* 何かキーを押すまでは始まらない */
-	m_started = false;
-	/* 当然終わってもいない */
-	m_finished = false;
+	/* 何かキーを押すまでは始まらないので、まだはじまっていない */
+	m_phase = PHASE_NOT_STARTED;
 	
 	/* 点数初期化 */
 	m_score = 0;
+	m_scoreTyping = 0;
+	m_scoreAccuracy = 0;
 	m_combo = 0;
+	
+	m_comboMax = 0;
+	
+	/* 優良可不可判定カウント初期化 */
+	m_countExcellent = 0;
+	m_countGood = 0;
+	m_countFair = 0;
+	m_countPoor = 0;
 	
 	strcpy(m_text, "");
 }
 
 void CTyping::keyboard(char ch){
-	if(!m_started){
-		m_started = true;
+	if(m_phase == PHASE_NOT_STARTED){	/* 開始前なら */
+		m_phase = PHASE_STARTED;
 		PlayMusic(m_musicFileName, DX_PLAYTYPE_BACK);	/* 音楽を流し始める */
 		setTime();	/* 始まった時刻を覚える */
+		return;
+	}
+	if(m_phase == PHASE_SCORE){	/* スコア表示中なら */
+		if(ch == CTRL_CODE_CR){	/* 改行なら確定 */
+			m_phase = PHASE_FINISHED;
+			return;
+		}
+		if(ch < CTRL_CODE_CMP){	/* 文字コードでなければ受け付けない */
+			return;
+		}
+		/* 【ここに名前記入処理とか】 */
 		return;
 	}
 	if(ch == '\0' || ch == ' '){	/* いろいろ困りそうだし、打つ意味がないから */
@@ -455,11 +509,14 @@ void CTyping::keyboard(char ch){
 }
 
 bool CTyping::idle(){	/* 問題なければ true を返す */
-	if(!m_started){	/* 開始していなければ特にすることは無い */
+	if(m_phase == PHASE_FINISHED){	/* 終了になっている */
+		return false;
+	}
+	if(m_phase == PHASE_NOT_STARTED){	/* 開始していなければ特にすることは無い */
 		return true;
 	}
-	if(CheckMusic() <= 0){	/* 音楽の再生が終了している */
-		m_finished = true;
+	if(m_phase == PHASE_STARTED && CheckMusic() <= 0){	/* 音楽の再生が終了している */
+		finish();
 		return true;
 	}
 	double time = getTime();
@@ -491,6 +548,11 @@ double CTyping::getTime(){	/* 開始時刻からの経過秒を取得 */
 	return (GetNowCount() - m_timeStart) / 1000.0;
 }
 
+void CTyping::finish(){	/* 終了して、スコア表示に */
+	m_phase = PHASE_SCORE;
+	setTime();
+}
+
 bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 		vector<Lyrics>::iterator &lyricsPosition, double time){
 	if(strlen(typeBuffer) == 0){
@@ -516,11 +578,9 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 				i != trie->m_data.end(); i++){	/* ローマ字候補を探索 */
 //printf("[%s]",(*i).m_str);
 			if((*i).match_front(typeBuffer)){
-				/* 実際に打たれている部分の長さ。これは負とかになりうる。 */
-				char tmpBuf[5];
-				strcpy(tmpBuf, (*i).m_str);
-				char *tmpTypeBuffer = tmpBuf + (*i).m_len;	/* 未確定ローマ字になるべき部分 */
 				int tmpLen = typeBufferLen - (*i).m_len;
+				/* 今回変換される部分の次の部分からに対して実際に打たれている部分の長さ。 */
+				/* これは負とかになりうる。 */
 				if(tmpLen <= 0){	/* 今回に必要ならキーを足して一度に打てる範囲はここまで */
 				/* これは、{んば……,nb……}でnだけ打った状況なども含まれる。 */
 //printf("[%f,%f -%f]\n",time,(*(tmpLyricsPosition-1)).timeJust,(*(tmpLyricsPosition-1)).timeUntil);
@@ -529,26 +589,27 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 						continue;
 					}
 				}
+				char tmpTypeBuffer[5];
+				strcpy(tmpTypeBuffer, (*i).m_str + (*i).m_len);	/* 未確定ローマ字になる予定の部分 */
 				if(input(tmpTypeBuffer, tmpLen, tmpLyricsPosition, time)){
 				/* 再帰の結果打てることが分かったとき */
 					if(typeBufferLen >= 1 && (*lyricsPosition).isScoringTarget){
 					/* 新しい音節の打ち始め(=得点対象になっている) */
-						m_score += scoreAccuracy(time - (*lyricsPosition).timeJust);
+						scoreAccuracy(time, lyricsPosition);
 						/* ちょうどのタイミングとのずれから計算した得点を与える。 */
-						(*lyricsPosition).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
 					}
-					/* 「っ」の処理をあとでなんか考える！ */
+					
+					/* 「っ」の処理、全ての3バイト以上への変換に効果があるので注意 */
 					if(typeBufferLen >= 2 && lyricsPosition + 2 < tmpLyricsPosition &&
 							(*(lyricsPosition + 2)).isScoringTarget){
 					/* 2文字打って、2バイト先(日本語の1文字先)が今回一度に打てる範囲で、さらに採点対象である */
 					/* つまり、「っか」における"kk"の時点で「か」が採点される。 */
-						m_score += scoreAccuracy(time - (*(lyricsPosition + 2)).timeJust);
+						scoreAccuracy(time, lyricsPosition + 2);
 						/* ちょうどのタイミングとのずれから計算した得点を与える。 */
-						(*(lyricsPosition + 2)).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
 					}
 					if((*i).match(typeBuffer)){	/* 完全一致 */
 						/* 変換された歌詞の分だけ得点を与える */
-						m_score += scoreTyping(lyricsPosition, tmpLyricsPosition);
+						scoreTyping(lyricsPosition, tmpLyricsPosition);
 						
 						for(vector<Lyrics>::iterator i = lyricsPosition; i != tmpLyricsPosition; i++){
 							(*i).isTyped = true;	/* 打った歌詞の範囲を記録 */
@@ -567,17 +628,29 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 	}
 }
 
-int CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd){
+void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd){
 /* [lyBegin, lyEnd)を打ったときの得点 */
-	return SCORE_TYPING * distance(lyBegin, lyEnd);
+	bool isJapanese2 = false;
+	for(vector<Lyrics>::iterator i = lyBegin; i != lyEnd; i++){
+		if(!isJapanese2){
+			m_scoreTyping += SCORE_TYPING;
+		}
+		isJapanese2 = false;
+		if((*i).isJapanese1()){	/* 日本語の1バイト目なら */
+			isJapanese2 = true;
+		}
+	}
+	m_score = m_scoreTyping + m_scoreAccuracy;
 }
 
-int CTyping::scoreAccuracy(double timeDiff){
-	m_combo++;	/* とりあえずコンボ数を 1 増やす */
-	int scoreCombo = SCORE_COMBO * m_combo;
+void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition){
+	double timeDiff = time - (*lyricsPosition).timeJust;
+	int scoreCombo = SCORE_COMBO * m_combo;	/* コンボ数を増やす前にコンボ数ボーナスを計算 */
 	if(scoreCombo > SCORE_COMBO_MAX){
 		scoreCombo = SCORE_COMBO;
 	}
+	
+	m_combo++;	/* とりあえずコンボ数を 1 増やす */
 	if(timeDiff < 0.0){
 		timeDiff = -timeDiff;
 	}
@@ -587,21 +660,28 @@ int CTyping::scoreAccuracy(double timeDiff){
 	int color;	/* 表示色 */
 	if(timeDiff < SEC_EXCELLENT){
 		score = SCORE_EXCELLENT + scoreCombo;
+		m_countExcellent++;
 		strAccuracy = "優";
 		color = GetColor(255, 255, 0);
 	}else if(timeDiff < SEC_GOOD){
 		score = SCORE_GOOD + scoreCombo;
+		m_countGood++;
 		strAccuracy = "良";
 		color = GetColor(0, 255, 0);
 	}else if(timeDiff < SEC_FAIR){
 		score = SCORE_FAIR + scoreCombo;
+		m_countFair++;
 		strAccuracy = "可";
 		color = GetColor(0, 128, 255);
 	}else{
 		score = SCORE_POOR;
+		m_countPoor++;
 		m_combo = 0;	/* コンボが途切れていた */
 		strAccuracy = "不可";
 		color = GetColor(128, 128, 128);
+	}
+	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
+		m_comboMax = m_combo;
 	}
 	if(m_combo >= 10){	/* コンボが10を超えたらコンボ数を表示 */
 		sprintf(buf, "%s %d", strAccuracy, m_combo);
@@ -609,37 +689,90 @@ int CTyping::scoreAccuracy(double timeDiff){
 		sprintf(buf, "%s", strAccuracy);
 	}
 	setText(buf, color);
-	return score;
+	
+	m_scoreAccuracy += score;	/* 得点加算 */
+	m_score = m_scoreTyping + m_scoreAccuracy;
+	(*lyricsPosition).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
 }
 
 #define Y_INFO 10
-#define Y_LYRICS_KANJI 70
-#define Y_LYRICS_KANJI_NEXT 110
-#define Y_ACCURACY 170
-#define Y_CIRCLE 260
+#define Y_INFO2 40
+#define Y_LYRICS_KANJI 90
+#define Y_LYRICS_KANJI_NEXT 130
+#define Y_ACCURACY 200
+#define Y_CIRCLE 290
 #define R_CIRCLE 30
-#define Y_LYRICS 310
-#define Y_BUFFER 360
+#define Y_LYRICS (Y_CIRCLE - 5)
+#define Y_LYRICS_BIG 340
+#define Y_BUFFER 390
 
 void CTyping::draw(){
 	double time;
-	if(m_finished){	/* 終わっている */
-		DrawFormatStringToHandle(10, 10, GetColor(255, 255, 255), m_fontHandleBig,
-			"得点: %10d", m_score);
+	if(m_phase >= PHASE_SCORE){	/* 終わっている */
+		time = getTime();
+		DrawFormatStringToHandle(30, 10, GetColor(255, 255, 255), m_fontHandleBig,
+			"判定 :");
+		if(time >= 0.5){
+			DrawFormatStringToHandle(60, 60, GetColor(255, 255, 255), m_fontHandleNormal,
+				"　優 : %5d/%d", m_countExcellent, m_countAll);
+		}
+		if(time >= 0.7){
+			DrawFormatStringToHandle(60, 85, GetColor(255, 255, 255), m_fontHandleNormal,
+				"　良 : %5d/%d", m_countGood, m_countAll);
+		}
+		if(time >= 0.9){
+			DrawFormatStringToHandle(60, 110, GetColor(255, 255, 255), m_fontHandleNormal,
+				"　可 : %5d/%d", m_countFair, m_countAll);
+		}
+		if(time >= 1.1){
+			DrawFormatStringToHandle(60, 135, GetColor(255, 255, 255), m_fontHandleNormal,
+				"不可 : %5d/%d", m_countPoor, m_countAll);
+		}
+		if(time >= 1.3){
+			DrawFormatStringToHandle(60, 160, GetColor(255, 255, 255), m_fontHandleNormal,
+				"通過 : %5d/%d", m_countAll - m_countExcellent - m_countGood - m_countFair - m_countPoor, m_countAll);
+		}
+		if(time >= 2.3){
+			DrawFormatStringToHandle(30, 200, GetColor(255, 255, 255), m_fontHandleBig,
+				"最大 %d コンボ", m_comboMax);
+		}
+		if(time >= 3.3){
+			DrawFormatStringToHandle(30, 260, GetColor(255, 255, 255), m_fontHandleBig,
+				"得点 :");
+		}
+		if(time >= 3.8){
+			DrawFormatStringToHandle(60, 310, GetColor(255, 255, 255), m_fontHandleNormal,
+				"質 : %10d 点", m_scoreAccuracy);
+		}
+		if(time >= 4.0){
+			DrawFormatStringToHandle(60, 335, GetColor(255, 255, 255), m_fontHandleNormal,
+				"量 : %10d 点", m_scoreTyping);
+		}
+		if(time >= 4.5){
+			DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), m_fontHandleBig,
+				"和 : %10d 点",m_score);
+		}
 		return;
 	}
-	if(!m_started){
+	if(m_phase == PHASE_NOT_STARTED){
 		SetFontSize(36);
 		DrawString(50, 400, "なにかキーを押してスタート", GetColor(255, 255, 255));
 		//return;
 		time = 0.0;	/* 始まる前は0秒で止まっている */
 	}else{
-		time = (GetNowCount() - m_timeStart) / 1000.0;	/* 開始時刻からの経過秒を取得 */
+		time = getTime();	/* 開始時刻からの経過秒を取得 */
 	}
 	DrawFormatStringToHandle(10, Y_INFO, GetColor(255, 255, 255), m_fontHandleNormal,
+		"%10d 点", m_score);
+	DrawFormatStringToHandle(10, Y_INFO2, GetColor(255, 255, 255), m_fontHandleNormal,
+		"%10d コンボ", m_combo);
+	/*
+	DrawFormatStringToHandle(10, Y_INFO, GetColor(255, 255, 255), m_fontHandleNormal,
 		"得点: %10d, %10d コンボ", m_score, m_combo);
-	//printf("%7.3f ", time);
-	
+	DrawFormatStringToHandle(10, Y_INFO2, GetColor(255, 255, 255), m_fontHandleNormal,
+		"( %d + %d ), ( %d / %d / %d / %d), %d",
+		m_scoreAccuracy, m_scoreTyping, m_countExcellent, m_countGood, m_countFair, m_countPoor, m_comboMax);
+	*/
 #if 0
 	{	/* 現在の歌詞の大きなかたまりを表示 */
 		vector<Lyrics>::iterator i = m_lyricsPosition;
@@ -723,7 +856,7 @@ void CTyping::draw(){
 		buf[len] = '\0';
 		if(isCurrent){
 			int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-			DrawStringToHandle(100 - strWidth / 2, Y_LYRICS, buf,
+			DrawStringToHandle(100 - strWidth / 2, Y_LYRICS_BIG, buf,
 				GetColor(255, 255, 255), m_fontHandleBig);	/* 打っている文字は下にも出す */
 		}
 		if(len == 0){	/* すべてタイプされていた */
@@ -735,10 +868,10 @@ void CTyping::draw(){
 		}else{
 			Color = GetColor(0, 0, 255);
 		}
-		DrawCircle(pos, Y_CIRCLE, R_CIRCLE, Color, TRUE);	/* 流れる円 */
+		DrawCircle(pos, Y_CIRCLE, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
 		DrawCircle(pos, Y_CIRCLE, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
 		int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleNormal);
-		DrawStringToHandle(pos - strWidth / 2, Y_CIRCLE - 5, buf,
+		DrawStringToHandle(pos - strWidth / 2, Y_LYRICS, buf,
 			GetColor(255, 255, 255), m_fontHandleNormal);	/* 流れる円に書かれる文字 */
 	}
 	DrawCircle(100, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), FALSE);	/* 判定位置の円 */
