@@ -9,11 +9,19 @@ using namespace std;
 #define INFTY 1000000000
 
 enum{
-PHASE_NOT_STARTED,
-PHASE_STARTED,
-PHASE_SCORE,
-PHASE_FINISHED,
+PHASE_NOT_STARTED,	/* 開始前 */
+PHASE_STARTED,	/* メイン */
+PHASE_RESULT,	/* スコア表示 */
+PHASE_FINISHED,	/* 名前入力後（ハイスコア処理完了） */
+PHASE_EXIT,	/* 終わったので消してもらう */
 };
+
+#define TYPE_BUFFER_LEN 8
+
+#define COLOR_EXCELLENT GetColor(255, 255, 0)
+#define COLOR_GOOD GetColor(0, 255, 0)
+#define COLOR_FAIR GetColor(0, 128, 255)
+#define COLOR_POOR GetColor(128, 128, 128)
 
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
@@ -29,7 +37,167 @@ PHASE_FINISHED,
 #define SCORE_COMBO_MAX 1000
 
 #define SCORE_TYPING 500
-/* タイピングで1文字確定させるごとに */
+/* タイピングで1文字確定させるごとに（1バイト文字、2バイト文字を問わない） */
+
+/* ============================================================ */
+
+class CScore{
+public:
+	CScore();
+	CScore(const char *n,int s,int sa,int st,int ce,int cg,int cf,int cp,int cx,int ca,int cm);
+	void read(FILE *fp);
+	void write(FILE *fp);
+	bool operator ==(CScore score){
+		return m_score == score.m_score;
+	}
+	bool operator !=(CScore score){
+		return m_score != score.m_score;
+	}
+	bool operator <(CScore score){
+		return m_score < score.m_score;
+	}
+	bool operator <=(CScore score){
+		return m_score <= score.m_score;
+	}
+	bool operator >(CScore score){
+		return m_score > score.m_score;
+	}
+	bool operator >=(CScore score){
+		return m_score >= score.m_score;
+	}
+private:
+	char m_name[TYPE_BUFFER_LEN + 1];
+	int m_score;
+	int m_scoreAccuracy, m_scoreTyping;
+	int m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass, m_countAll;
+	int m_comboMax;
+};
+
+CScore::CScore(){
+	strcpy(m_name, "_");
+	m_score = 0;
+	m_scoreAccuracy = 0;
+	m_scoreTyping = 0;
+	m_countExcellent = 0;
+	m_countGood = 0;
+	m_countFair = 0;
+	m_countPoor = 0;
+	m_countPass = 0;
+	m_countAll = 0;
+	m_comboMax = 0;
+}
+
+CScore::CScore(const char *n,int s,int sa,int st,int ce,int cg,int cf,int cp,int cx,int ca,int cm){
+	strcpy(m_name, n);
+	m_score = s;
+	m_scoreAccuracy = sa;
+	m_scoreTyping = st;
+	m_countExcellent = ce;
+	m_countGood = cg;
+	m_countFair = cf;
+	m_countPoor = cp;
+	m_countPass = cx;
+	m_countAll = ca;
+	m_comboMax = cm;
+}
+
+void CScore::read(FILE *fp){
+	strcpy(m_name, "_");
+	m_score = 0;
+	m_scoreAccuracy = 0;
+	m_scoreTyping = 0;
+	m_countExcellent = 0;
+	m_countGood = 0;
+	m_countFair = 0;
+	m_countPoor = 0;
+	m_countPass = 0;
+	m_countAll = 0;
+	m_comboMax = 0;
+	fscanf(fp, "%s%d%d%d%d%d%d%d%d%d%d", m_name, &m_score, &m_scoreAccuracy, &m_scoreTyping,
+		&m_countExcellent, &m_countGood, &m_countFair, &m_countPoor, &m_countPass,
+		&m_countAll, &m_comboMax);
+}
+
+void CScore::write(FILE *fp){
+	fprintf(fp, "%s %d %d %d %d %d %d %d %d %d %d\n", m_name, m_score, m_scoreAccuracy, m_scoreTyping,
+		m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
+		m_countAll, m_comboMax);
+}
+
+/* ============================================================ */
+
+class CRanking{
+public:
+	CRanking();
+	~CRanking();
+	int update(CScore &score);
+	void open(const char *fileName);
+	void close();
+	void read();
+	void write();
+private:
+	FILE *m_fp;
+	CScore m_score[5];
+};
+
+CRanking::CRanking(){
+	m_fp = NULL;	/* まだファイルを開いていない */
+}
+
+CRanking::~CRanking(){
+	close();
+}
+
+/* ランクインなら順位(0-4)を返す。そうでなければ -1 を返す */
+int CRanking::update(CScore &score){
+	for(int i = 0; i < 5; i++){
+		if(score > m_score[i]){	/* i位より大きい */
+			for(int j = 5 - 1; j > i; j--){	/* i位以降のデータを後ろに1つずつずらす */
+				m_score[j] = m_score[j-1];
+			}
+			m_score[i] = score;
+			return i;
+		}
+	}
+	return -1;
+}
+
+void CRanking::open(const char *fileName){
+	if(m_fp != NULL){
+		close();
+	}
+	m_fp = fopen(fileName, "r+");	/* あればそれを開いて、 */
+	if(m_fp == NULL){
+		m_fp = fopen(fileName, "w+");	/* なければ作成 */
+		if(m_fp == NULL){
+			throw __LINE__;
+		}
+	}
+}
+
+void CRanking::close(){
+	if(m_fp != NULL){
+		fclose(m_fp);
+		m_fp = NULL;
+	}
+}
+
+void CRanking::read(){
+	rewind(m_fp);
+	for(int i=0; i<5; i++){
+		m_score[i].read(m_fp);
+	}
+	rewind(m_fp);
+	return;
+}
+
+void CRanking::write(){
+	rewind(m_fp);
+	for(int i=0; i<5; i++){
+		m_score[i].write(m_fp);
+	}
+	rewind(m_fp);
+}
 
 /* ============================================================ */
 
@@ -40,7 +208,7 @@ public:
 	bool match(const char *str);
 public:
 	/* まあ、もともとstructにするつもりだったぐらいだし */
-	char m_str[5];	/* 日本語 → ローマ字, 全角 → 半角 の変換先は 4 文字以内 */
+	char m_str[9];	/* 日本語 → ローマ字, 全角 → 半角 の変換先は 4 文字以内だから、5以上にしておけばよい */
 	int m_len;
 	/* str には条件に使われる文字列が入っているが、そのうち確定される長さ */
 	/* 例: 「ん」に対して {"nb", 1}, 「っっ」に対して {"lltu", 4} など */
@@ -163,26 +331,29 @@ public:
 	CTyping();
 	~CTyping();
 	// void loadDictionary(const char *fileName);
-	/* ローマ字辞書は最初に読む */
+	/* ローマ字辞書はコンストラクタで読む */
 	void load(const char *fileName);
+	void loadRanking(const char *fileName);
 	void keyboard(char ch);
 	bool idle();
-	void draw();
 private:
 	void setText(const char *str, int color);
 	void setTime();
 	double getTime();
-	void finish();	/* 曲が終わったときの処理 */
+	void phase(int phaseNum);
 	bool input(char *typeBuffer, int &typeBufferLen,
 		vector<Lyrics>::iterator &lyricsPosition, double time);
 	void scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
 	void scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition);
+public:
+	void draw();
+	void drawResult();
 private:
 	CTrieNode m_trie;
 	
 	vector<Lyrics> m_lyrics;
 	vector<Lyrics>::iterator m_lyricsPosition;
-	char m_typeBuffer[5];
+	char m_typeBuffer[TYPE_BUFFER_LEN + 1];
 	int m_typeBufferLen;
 	
 	vector<LyricsKanji> m_lyricsKanji;
@@ -203,7 +374,11 @@ private:
 	int m_countGood;
 	int m_countFair;
 	int m_countPoor;
+	int m_countPass;
 	int m_countAll;
+	
+	CRanking m_ranking;	/* ハイスコアのデータ */
+	int m_rank;	/* ハイスコアの中での順位、ランクインしなければ -1 */
 	
 	char m_text[256];
 	int m_textColor;
@@ -410,7 +585,7 @@ void CTyping::load(const char *fileName){
 	m_typeBufferLen = 0;
 	
 	/* 何かキーを押すまでは始まらないので、まだはじまっていない */
-	m_phase = PHASE_NOT_STARTED;
+	phase(PHASE_NOT_STARTED);
 	
 	/* 点数初期化 */
 	m_score = 0;
@@ -429,22 +604,54 @@ void CTyping::load(const char *fileName){
 	strcpy(m_text, "");
 }
 
+void CTyping::loadRanking(const char *fileName){
+	m_ranking.open(fileName);
+	m_ranking.read();
+}
+
 void CTyping::keyboard(char ch){
 	if(m_phase == PHASE_NOT_STARTED){	/* 開始前なら */
-		m_phase = PHASE_STARTED;
+		phase(PHASE_STARTED);
 		PlayMusic(m_musicFileName, DX_PLAYTYPE_BACK);	/* 音楽を流し始める */
 		setTime();	/* 始まった時刻を覚える */
 		return;
 	}
-	if(m_phase == PHASE_SCORE){	/* スコア表示中なら */
-		if(ch == CTRL_CODE_CR){	/* 改行なら確定 */
-			m_phase = PHASE_FINISHED;
+	if(m_phase == PHASE_RESULT){	/* スコア表示中なら */
+		/* 名前記入のためにバッファを読み書き */
+		if(ch < CTRL_CODE_CMP){	/* 文字コードでないとき */
+			switch(ch){
+			case CTRL_CODE_CR:	/* 改行なら確定 */
+				if(m_typeBufferLen > 0){	/* 名前が入力されているか確認 */
+					phase(PHASE_FINISHED);
+				}
+				break;
+			case CTRL_CODE_BS:	/* BackSpaceや左キーやDeleteなら */
+			case CTRL_CODE_LEFT:
+			case CTRL_CODE_DEL:
+				if(m_typeBufferLen > 0){
+					m_typeBuffer[--m_typeBufferLen] = '\0';	/* 一文字削除 */
+				}
+				break;
+			}
 			return;
 		}
-		if(ch < CTRL_CODE_CMP){	/* 文字コードでなければ受け付けない */
-			return;
+		if(ch == ' '){	/* スペースはアンダーバーに変換（ランキングファイルの仕様のため） */
+			ch = '_';
 		}
-		/* 【ここに名前記入処理とか】 */
+		if(m_typeBufferLen < TYPE_BUFFER_LEN){
+			m_typeBuffer[m_typeBufferLen++] = ch;
+			m_typeBuffer[m_typeBufferLen] = '\0';
+		}
+		return;
+	}
+	if(m_phase == PHASE_FINISHED){	/* ランキング表示中なら */
+		if(ch == CTRL_CODE_CR){	/* Enterで終了 */
+			phase(PHASE_EXIT);
+		}
+		return;
+	}
+	
+	if(m_phase != PHASE_STARTED){	/* ここから先はゲームメインのときの処理 */
 		return;
 	}
 	if(ch == '\0' || ch == ' '){	/* いろいろ困りそうだし、打つ意味がないから */
@@ -469,7 +676,7 @@ void CTyping::keyboard(char ch){
 		return;
 	}
 	m_typeBufferLen--;
-	char tmpBuffer[5];
+	char tmpBuffer[TYPE_BUFFER_LEN + 1];
 	int tmpLen;
 	vector<Lyrics>::iterator tmpLyricsPosition;
 	tmpBuffer[0] = ch;
@@ -509,14 +716,18 @@ void CTyping::keyboard(char ch){
 }
 
 bool CTyping::idle(){	/* 問題なければ true を返す */
-	if(m_phase == PHASE_FINISHED){	/* 終了になっている */
+	if(m_phase == PHASE_EXIT){	/* 終了することになっている */
 		return false;
 	}
 	if(m_phase == PHASE_NOT_STARTED){	/* 開始していなければ特にすることは無い */
 		return true;
 	}
-	if(m_phase == PHASE_STARTED && CheckMusic() <= 0){	/* 音楽の再生が終了している */
-		finish();
+	if(m_phase != PHASE_STARTED){	/* ここから先はゲームメインのときの処理 */
+		return true;
+	}
+	
+	if(CheckMusic() <= 0){	/* 音楽の再生が終了している */
+		phase(PHASE_RESULT);
 		return true;
 	}
 	double time = getTime();
@@ -548,9 +759,25 @@ double CTyping::getTime(){	/* 開始時刻からの経過秒を取得 */
 	return (GetNowCount() - m_timeStart) / 1000.0;
 }
 
-void CTyping::finish(){	/* 終了して、スコア表示に */
-	m_phase = PHASE_SCORE;
-	setTime();
+void CTyping::phase(int phaseNum){	/* 終了して、スコア表示に */
+	if(phaseNum == PHASE_RESULT){
+		setTime();	/* 表示開始されてからの時間を利用するためにセット */
+		m_typeBuffer[0]= '\0';
+		m_typeBufferLen = 0;	/* 名前入力に使うのでバッファをクリア */
+		
+		/* 通過した個数を数えておく */
+		m_countPass = m_countAll - m_countExcellent - m_countGood - m_countFair - m_countPoor;
+	}
+	if(phaseNum == PHASE_FINISHED){
+		CScore score(m_typeBuffer, m_score, m_scoreAccuracy, m_scoreTyping,
+			m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
+			m_countAll, m_comboMax);
+		m_rank = m_ranking.update(score);
+		if(m_rank >= 0){
+			m_ranking.write();
+		}
+	}
+	m_phase = phaseNum;
 }
 
 bool CTyping::input(char *typeBuffer, int &typeBufferLen,
@@ -589,7 +816,7 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen,
 						continue;
 					}
 				}
-				char tmpTypeBuffer[5];
+				char tmpTypeBuffer[TYPE_BUFFER_LEN + 1];
 				strcpy(tmpTypeBuffer, (*i).m_str + (*i).m_len);	/* 未確定ローマ字になる予定の部分 */
 				if(input(tmpTypeBuffer, tmpLen, tmpLyricsPosition, time)){
 				/* 再帰の結果打てることが分かったとき */
@@ -662,23 +889,23 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 		score = SCORE_EXCELLENT + scoreCombo;
 		m_countExcellent++;
 		strAccuracy = "優";
-		color = GetColor(255, 255, 0);
+		color = COLOR_EXCELLENT;
 	}else if(timeDiff < SEC_GOOD){
 		score = SCORE_GOOD + scoreCombo;
 		m_countGood++;
 		strAccuracy = "良";
-		color = GetColor(0, 255, 0);
+		color = COLOR_GOOD;
 	}else if(timeDiff < SEC_FAIR){
 		score = SCORE_FAIR + scoreCombo;
 		m_countFair++;
 		strAccuracy = "可";
-		color = GetColor(0, 128, 255);
+		color = COLOR_FAIR;
 	}else{
 		score = SCORE_POOR;
 		m_countPoor++;
 		m_combo = 0;	/* コンボが途切れていた */
 		strAccuracy = "不可";
-		color = GetColor(128, 128, 128);
+		color = COLOR_POOR;
 	}
 	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
 		m_comboMax = m_combo;
@@ -707,53 +934,11 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 #define Y_BUFFER 390
 
 void CTyping::draw(){
-	double time;
-	if(m_phase >= PHASE_SCORE){	/* 終わっている */
-		time = getTime();
-		DrawFormatStringToHandle(30, 10, GetColor(255, 255, 255), m_fontHandleBig,
-			"判定 :");
-		if(time >= 0.5){
-			DrawFormatStringToHandle(60, 60, GetColor(255, 255, 255), m_fontHandleNormal,
-				"　優 : %5d/%d", m_countExcellent, m_countAll);
-		}
-		if(time >= 0.7){
-			DrawFormatStringToHandle(60, 85, GetColor(255, 255, 255), m_fontHandleNormal,
-				"　良 : %5d/%d", m_countGood, m_countAll);
-		}
-		if(time >= 0.9){
-			DrawFormatStringToHandle(60, 110, GetColor(255, 255, 255), m_fontHandleNormal,
-				"　可 : %5d/%d", m_countFair, m_countAll);
-		}
-		if(time >= 1.1){
-			DrawFormatStringToHandle(60, 135, GetColor(255, 255, 255), m_fontHandleNormal,
-				"不可 : %5d/%d", m_countPoor, m_countAll);
-		}
-		if(time >= 1.3){
-			DrawFormatStringToHandle(60, 160, GetColor(255, 255, 255), m_fontHandleNormal,
-				"通過 : %5d/%d", m_countAll - m_countExcellent - m_countGood - m_countFair - m_countPoor, m_countAll);
-		}
-		if(time >= 2.3){
-			DrawFormatStringToHandle(30, 200, GetColor(255, 255, 255), m_fontHandleBig,
-				"最大 %d コンボ", m_comboMax);
-		}
-		if(time >= 3.3){
-			DrawFormatStringToHandle(30, 260, GetColor(255, 255, 255), m_fontHandleBig,
-				"得点 :");
-		}
-		if(time >= 3.8){
-			DrawFormatStringToHandle(60, 310, GetColor(255, 255, 255), m_fontHandleNormal,
-				"質 : %10d 点", m_scoreAccuracy);
-		}
-		if(time >= 4.0){
-			DrawFormatStringToHandle(60, 335, GetColor(255, 255, 255), m_fontHandleNormal,
-				"量 : %10d 点", m_scoreTyping);
-		}
-		if(time >= 4.5){
-			DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), m_fontHandleBig,
-				"和 : %10d 点",m_score);
-		}
+	if(m_phase >= PHASE_RESULT){	/* スコア表示以降 */
+		drawResult();
 		return;
 	}
+	double time;
 	if(m_phase == PHASE_NOT_STARTED){
 		SetFontSize(36);
 		DrawString(50, 400, "なにかキーを押してスタート", GetColor(255, 255, 255));
@@ -902,6 +1087,74 @@ void CTyping::draw(){
 		GetColor(255, 255, 255), m_fontHandleBig);
 }
 
+void CTyping::drawResult(){
+	double time = getTime();
+	DrawFormatStringToHandle(30, 10, GetColor(255, 255, 255), m_fontHandleBig,
+		"判定 :");
+	if(time >= 0.5){
+		DrawFormatStringToHandle(320, 10, COLOR_EXCELLENT, m_fontHandleNormal,
+			"　優 : %5d / %d", m_countExcellent, m_countAll);
+	}
+	if(time >= 0.7){
+		DrawFormatStringToHandle(320, 35, COLOR_GOOD, m_fontHandleNormal,
+			"　良 : %5d / %d", m_countGood, m_countAll);
+	}
+	if(time >= 0.9){
+		DrawFormatStringToHandle(320, 60, COLOR_FAIR, m_fontHandleNormal,
+			"　可 : %5d / %d", m_countFair, m_countAll);
+	}
+	if(time >= 1.1){
+		DrawFormatStringToHandle(320, 85, COLOR_POOR, m_fontHandleNormal,
+			"不可 : %5d / %d", m_countPoor, m_countAll);
+	}
+	if(time >= 1.3){
+		DrawFormatStringToHandle(320, 110, GetColor(255, 255, 255), m_fontHandleNormal,
+			"通過 : %5d / %d", m_countPass, m_countAll);
+	}
+	if(time >= 2.3){
+		DrawFormatStringToHandle(30, 150, GetColor(255, 255, 255), m_fontHandleBig,
+			"最大 %d コンボ", m_comboMax);
+	}
+	if(time >= 3.3){
+		DrawFormatStringToHandle(30, 210, GetColor(255, 255, 255), m_fontHandleBig,
+			"得点 :");
+	}
+	if(time >= 3.8){
+		DrawFormatStringToHandle(320, 210, GetColor(255, 255, 255), m_fontHandleNormal,
+			"質 : %10d 点", m_scoreAccuracy);
+	}
+	if(time >= 4.0){
+		DrawFormatStringToHandle(320, 235, GetColor(255, 255, 255), m_fontHandleNormal,
+			"量 : %10d 点", m_scoreTyping);
+	}
+	if(time >= 4.5){
+		DrawFormatStringToHandle(30, 275, GetColor(255, 255, 255), m_fontHandleBig,
+			"総得点 : %10d 点",m_score);
+	}
+	if(time >= 5.0){
+		DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), m_fontHandleNormal,
+			"名前を入力してください :");
+	}
+	DrawFormatStringToHandle(60, 400, GetColor(255, 255, 255), m_fontHandleBig,
+		"%s", m_typeBuffer);
+	if(m_phase == PHASE_FINISHED){
+		if(m_rank >= 0){
+			int strWidth;
+			strWidth = GetDrawFormatStringWidthToHandle( m_fontHandleBig,
+				"%d 位にランクインしました", m_rank + 1);
+			int boxWidth = strWidth + 100;
+			if(boxWidth > 640){
+				boxWidth = 640;
+			}
+			DrawBox(320 - boxWidth / 2, 200, 320 + boxWidth/2, 280, GetColor(255, 255, 255), TRUE);
+			DrawFormatStringToHandle(320 - strWidth / 2, 240 - 18,
+				GetColor(0, 0, 0), m_fontHandleBig,
+				"%d 位にランクインしました", m_rank + 1);
+		}
+	}
+	return;
+}
+
 /* ============================================================ */
 
 void main2(CTyping &typing){
@@ -968,6 +1221,7 @@ void main1(){
 			{
 				CTyping typing;
 				typing.load((*fileNameArrayItr).c_str());	/* ファイルを読み込む */
+				typing.loadRanking(((*fileNameArrayItr) + "-rank.dat").c_str());
 				main2(typing);
 			}
 			break;
