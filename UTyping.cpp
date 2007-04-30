@@ -9,8 +9,8 @@ using namespace std;
 #define INFTY 1000000000
 
 enum{
-PHASE_NOT_STARTED,	/* 開始前 */
-PHASE_STARTED,	/* メイン */
+PHASE_READY,	/* 開始前 */
+PHASE_MAIN,	/* メイン */
 PHASE_RESULT,	/* スコア表示 */
 PHASE_FINISHED,	/* 名前入力後（ハイスコア処理完了） */
 PHASE_EXIT,	/* 終わったので消してもらう */
@@ -38,6 +38,23 @@ PHASE_EXIT,	/* 終わったので消してもらう */
 
 #define SCORE_TYPING 500
 /* タイピングで1文字確定させるごとに（1バイト文字、2バイト文字を問わない） */
+
+/* ============================================================ */
+
+/* 雑多な関数（予定） */
+
+void getDirFromPath(char *directoryName, const char *fileName){
+	strcpy(directoryName, fileName);
+	for(int i = strlen(directoryName) - 1; i >= 0; i--){	/* 後ろからたどる */
+		if(directoryName[i] == '/' || directoryName[i] == '\\'){	/* '/'や'\'が現れたら */
+			directoryName[i + 1] = '\0';	/* そこまでなので、次を'\0'に */
+			return;
+		}
+	}
+	/* 最後まで現れなかったら */
+	directoryName[0] = '\0';
+	return;
+}
 
 /* ============================================================ */
 
@@ -245,7 +262,7 @@ CConvertData::CConvertData(const char *buf1, const char *buf3){
 //printf("%s %d\n",m_str,m_len);
 }
 
-bool CConvertData::match_front(const char *str){
+bool CConvertData::match_front(const char *str){	/* データの前方とstrが一致するか */
 	for(int i=0; str[i]!='\0'; i++){
 		if(str[i] != m_str[i]){
 			return false;
@@ -377,6 +394,9 @@ private:
 	
 	vector<Lyrics> m_lyrics;
 	vector<Lyrics>::iterator m_lyricsPosition;
+	
+	double m_timeLength;	/* 譜面の（時間の）長さ */
+	
 	char m_typeBuffer[TYPE_BUFFER_LEN + 1];
 	int m_typeBufferLen;
 	
@@ -385,7 +405,7 @@ private:
 	
 	int m_phase;
 	
-	int m_timeStart;
+	int m_timeBegin;
 	
 	int m_score;
 	int m_scoreTyping;	/* タイピングによる得点 */
@@ -455,6 +475,8 @@ CTyping::~CTyping(){
 }
 
 void CTyping::load(const char *fileName){
+	char directoryName[256];
+	getDirFromPath(directoryName, fileName);
 	FILE *fp;
 	fp = fopen(fileName,"r");
 	if(fp == NULL){
@@ -492,11 +514,15 @@ void CTyping::load(const char *fileName){
 	bool flag = true;
 	while(flag){
 		if(fgets(tmpBuf,sizeof(tmpBuf),fp) == NULL){
+			m_timeLength = timeLast;	/* 譜面終了時刻を記録 */
 			flag = false;
 			time = INFTY;
 		}else{
 			/* 改行コードは消す */
 			int len = strlen(tmpBuf);
+			if(len <= 0){
+				continue;
+			}
 			if(tmpBuf[len - 1] == '\n'){
 				tmpBuf[len - 1] = '\0';
 			}
@@ -541,7 +567,8 @@ void CTyping::load(const char *fileName){
 				}
 				break;
 			case '@':
-				strcpy(m_musicFileName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
+				strcpy(m_musicFileName, directoryName);
+				strcat(m_musicFileName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
 				continue;
 			default:
 				continue;
@@ -575,6 +602,7 @@ void CTyping::load(const char *fileName){
 		timeLast = time;
 		strcpy(bufLast, buf);
 	}
+	fclose(fp);
 //printf("\n");
 	/* 打つ歌詞の番兵として最後に' ',INFTYを追加しておく */
 	{
@@ -609,7 +637,7 @@ void CTyping::load(const char *fileName){
 	m_typeBufferLen = 0;
 	
 	/* 何かキーを押すまでは始まらないので、まだはじまっていない */
-	phase(PHASE_NOT_STARTED);
+	phase(PHASE_READY);
 	
 	/* 点数初期化 */
 	m_score = 0;
@@ -634,8 +662,8 @@ void CTyping::loadRanking(const char *fileName){
 }
 
 void CTyping::keyboard(char ch){
-	if(m_phase == PHASE_NOT_STARTED){	/* 開始前なら */
-		phase(PHASE_STARTED);
+	if(m_phase == PHASE_READY){	/* 開始前なら */
+		phase(PHASE_MAIN);
 		PlayMusic(m_musicFileName, DX_PLAYTYPE_BACK);	/* 音楽を流し始める */
 		setTime();	/* 始まった時刻を覚える */
 		return;
@@ -653,7 +681,7 @@ void CTyping::keyboard(char ch){
 			case CTRL_CODE_LEFT:
 			case CTRL_CODE_DEL:
 				if(m_typeBufferLen > 0){
-					m_typeBuffer[--m_typeBufferLen] = '\0';	/* 一文字削除 */
+					m_typeBufferLen--;	/* 一文字削除 */
 				}
 				break;
 			}
@@ -664,7 +692,6 @@ void CTyping::keyboard(char ch){
 		}
 		if(m_typeBufferLen < TYPE_BUFFER_LEN){
 			m_typeBuffer[m_typeBufferLen++] = ch;
-			m_typeBuffer[m_typeBufferLen] = '\0';
 		}
 		return;
 	}
@@ -675,7 +702,7 @@ void CTyping::keyboard(char ch){
 		return;
 	}
 	
-	if(m_phase != PHASE_STARTED){	/* ここから先はゲームメインのときの処理 */
+	if(m_phase != PHASE_MAIN){	/* ここから先はゲームメインのときの処理 */
 		return;
 	}
 	if(ch == '\0' || ch == ' '){	/* いろいろ困りそうだし、打つ意味がないから */
@@ -743,18 +770,26 @@ bool CTyping::idle(){	/* 問題なければ true を返す */
 	if(m_phase == PHASE_EXIT){	/* 終了することになっている */
 		return false;
 	}
-	if(m_phase == PHASE_NOT_STARTED){	/* 開始していなければ特にすることは無い */
+	if(m_phase == PHASE_READY){	/* 開始していなければ特にすることは無い */
 		return true;
 	}
-	if(m_phase != PHASE_STARTED){	/* ここから先はゲームメインのときの処理 */
+	if(m_phase != PHASE_MAIN){	/* ここから先はゲームメインのときの処理 */
 		return true;
 	}
 	
-	if(CheckMusic() <= 0){	/* 音楽の再生が終了している */
+	/* 音楽の再生が終了しているならスコア画面へ */
+	/*
+	if(CheckMusic() <= 0){
 		phase(PHASE_RESULT);
 		return true;
 	}
+	*/
 	double time = getTime();
+	
+	if(time >= m_timeLength){	/* 最後の譜面が通過 */
+		phase(PHASE_RESULT);
+	}
+	
 	for(vector<Lyrics>::iterator i = m_lyricsPosition; ; i++){
 		if((*i).ch == ' '){	/* 打ち遅れている歌詞をたどったら、大きな区切れまで来てしまった */
 			m_combo = 0;	/* コンボは途切れる */
@@ -776,17 +811,16 @@ void CTyping::setText(const char *str, int color){	/* 表示文字列を設定 */
 }
 
 void CTyping::setTime(){	/* 開始時刻を設定 */
-	m_timeStart = GetNowCount();
+	m_timeBegin = GetNowCount();
 }
 
 double CTyping::getTime(){	/* 開始時刻からの経過秒を取得 */
-	return (GetNowCount() - m_timeStart) / 1000.0;
+	return (GetNowCount() - m_timeBegin) / 1000.0;
 }
 
 void CTyping::phase(int phaseNum){	/* 終了して、スコア表示に */
 	if(phaseNum == PHASE_RESULT){
 		setTime();	/* 表示開始されてからの時間を利用するためにセット */
-		m_typeBuffer[0]= '\0';
 		m_typeBufferLen = 0;	/* 名前入力に使うのでバッファをクリア */
 		
 		/* 通過した個数を数えておく */
@@ -956,12 +990,14 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 
 #define Y_INFO 10
 #define Y_INFO2 40
-#define Y_LYRICS_KANJI 90
-#define Y_LYRICS_KANJI_NEXT 130
-#define Y_ACCURACY 200
-#define Y_CIRCLE 290
+#define X_LYRICS_KANJI 10
+#define Y_LYRICS_KANJI 265
+#define Y_LYRICS_KANJI_NEXT 300
+#define Y_CIRCLE 190
 #define R_CIRCLE 30
-#define Y_LYRICS (Y_CIRCLE - 5)
+#define X_ACCURACY (100 - R_CIRCLE)
+#define Y_ACCURACY 100
+#define Y_LYRICS (Y_CIRCLE + R_CIRCLE + 10)
 #define Y_LYRICS_BIG 340
 #define Y_BUFFER 390
 
@@ -971,7 +1007,7 @@ void CTyping::draw(){
 		return;
 	}
 	double time;
-	if(m_phase == PHASE_NOT_STARTED){
+	if(m_phase == PHASE_READY){
 		SetFontSize(36);
 		DrawString(50, 400, "なにかキーを押してスタート", GetColor(255, 255, 255));
 		//return;
@@ -1014,17 +1050,22 @@ void CTyping::draw(){
 	while(time >= (*m_lyricsKanjiPosition).timeEnd){	/* 表示終了しているなら次に進む */
 		m_lyricsKanjiPosition++;
 	}
-	if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
-		DrawFormatStringToHandle(10, Y_LYRICS_KANJI,
-			GetColor(255, 255, 255), m_fontHandleNormal,
-			"%s", (*m_lyricsKanjiPosition).str.c_str());	/* 出力 */
-		DrawFormatStringToHandle(10, Y_LYRICS_KANJI_NEXT,
-			GetColor(255, 255, 255), m_fontHandleNormal,
-			"Next: %s", (*(m_lyricsKanjiPosition + 1)).str.c_str());	/* Nextを出力 */
-	}else{
-		DrawFormatStringToHandle(10, Y_LYRICS_KANJI_NEXT,
-			GetColor(255, 255, 255), m_fontHandleNormal,
-			"Next: %s", (*m_lyricsKanjiPosition).str.c_str());	/* Nextを出力 */
+	{
+		int strWidth = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "Next: ");
+		DrawFormatStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT,
+			GetColor(255, 255, 255), m_fontHandleNormal, "Next: ");
+		if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* 出力 */
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*(m_lyricsKanjiPosition + 1)).str.c_str());	/* Nextを出力 */
+		}else{
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* Nextを出力 */
+		}
 	}
 	
 	for(vector<Lyrics>::iterator i = m_lyrics.end() - 1; i != m_lyrics.begin() - 1; i--){
@@ -1034,23 +1075,11 @@ void CTyping::draw(){
 		if((*i).ch == '\n'){	/* 最後 */
 			continue;
 		}
-		bool isCurrent = false;	/* 今打っているものかどうか */
-		{
-			vector<Lyrics>::iterator j = i;
-			do{	/* ブロック内の未タイプの文字をbufに格納 */
-				if(j == m_lyricsPosition){	/* 現在打っている場所を含むなら */
-					isCurrent = true;
-				}
-				j++;
-			}while(!(*j).isBlockStart);
-		}
-		
 		double timeDiff = time - (*i).timeJust;	/* ちょうど打つ位置になってから何秒後か */
 		int pos = (int)(100 - timeDiff * 250.0);
-		if((!isCurrent) && (pos < -32 || pos > 640+32)){	/* 画面外 */
+		if(pos < -32 || pos > 640+32){	/* 画面外 */
 			continue;
 		}
-		/* isCurrentなら進ませるのは、現在打っている文字を表示するため */
 		
 		if((*i).ch == ' '){	/* 歌詞の切れ目 */
 			if(timeDiff < 0.0){	/* 切れ目は判定位置に来るより前のときだけ表示 */
@@ -1060,23 +1089,15 @@ void CTyping::draw(){
 		char buf[256];
 		int len = 0;
 		{
-		vector<Lyrics>::iterator j = i;
-		do{	/* ブロック内の未タイプの文字をbufに格納 */
-			if(j == m_lyricsPosition){	/* 現在打っている場所を含むなら */
-				isCurrent = true;
-			}
-			if(!(*j).isTyped){
-				buf[len++] = (*j).ch;
-			}
-			j++;
-		}while(!(*j).isBlockStart);
+			vector<Lyrics>::iterator j = i;
+			do{	/* ブロック内の未タイプの文字をbufに格納 */
+				if(!(*j).isTyped){
+					buf[len++] = (*j).ch;
+				}
+				j++;
+			}while(!(*j).isBlockStart);
 		}
 		buf[len] = '\0';
-		if(isCurrent){
-			int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-			DrawStringToHandle(100 - strWidth / 2, Y_LYRICS_BIG, buf,
-				GetColor(255, 255, 255), m_fontHandleBig);	/* 打っている文字は下にも出す */
-		}
 		if(len == 0){	/* すべてタイプされていた */
 			continue;
 		}
@@ -1101,7 +1122,7 @@ void CTyping::draw(){
 			//int strWidth = GetDrawStringWidthToHandle(m_text, strLen, m_fontHandleBig);
 			int strX;
 			//strX = 100 - strWidth / 2;
-			strX = 100 - R_CIRCLE;	/* 円の左端 */
+			strX = X_ACCURACY;	//100 - R_CIRCLE;	/* 円の左端 */
 			int strY;	/* 表示されるY座標 */
 			strY = Y_ACCURACY;
 			if(timeDiff < 0.05){	/* 0.05秒後には定位置 */
@@ -1112,12 +1133,31 @@ void CTyping::draw(){
 		}
 	}
 	
+	/* いま対象になっている歌詞(m_lyricsPositionから次の歌詞まで)を表示 */
+	if((*m_lyricsPosition).ch != '\n'){	/* 全ての歌詞の後ではない */
+		char buf[256];
+		int len = 0;
+		{
+			vector<Lyrics>::iterator i = m_lyricsPosition;
+			do{	/* ブロック内の未タイプの文字をbufに格納 */
+				buf[len++] = (*i).ch;
+				i++;
+			}while(!(*i).isBlockStart);
+		}
+		buf[len] = '\0';
+		int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
+		DrawStringToHandle(100 - strWidth / 2, Y_LYRICS_BIG, buf,
+			GetColor(255, 255, 255), m_fontHandleBig);
+	}
+	
 	/* タイプした文字を表示 */
-	m_typeBuffer[m_typeBufferLen] = '\0';
-	int strLen = strlen(m_typeBuffer);
-	int strWidth = GetDrawStringWidthToHandle(m_typeBuffer, strLen, m_fontHandleBig);
-	DrawStringToHandle(100 - strWidth / 2, Y_BUFFER, m_typeBuffer,
-		GetColor(255, 255, 255), m_fontHandleBig);
+	{
+		m_typeBuffer[m_typeBufferLen] = '\0';
+		int strLen = strlen(m_typeBuffer);
+		int strWidth = GetDrawStringWidthToHandle(m_typeBuffer, strLen, m_fontHandleBig);
+		DrawStringToHandle(100 - strWidth / 2, Y_BUFFER, m_typeBuffer,
+			GetColor(255, 255, 255), m_fontHandleBig);
+	}
 }
 
 void CTyping::drawResult(){
@@ -1168,6 +1208,7 @@ void CTyping::drawResult(){
 		DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), m_fontHandleNormal,
 			"名前を入力してください :");
 	}
+	m_typeBuffer[m_typeBufferLen] = '\0';
 	DrawFormatStringToHandle(60, 400, GetColor(255, 255, 255), m_fontHandleBig,
 		"%s", m_typeBuffer);
 	if(m_phase == PHASE_FINISHED){
@@ -1270,16 +1311,16 @@ void main1(){
 			rankingLoad(fileNameArrayItr);
 			break;
 		case CTRL_CODE_CR:	/* ゲーム開始 */
+			ranking.close();
 			{
-				ranking.close();
 				
 				CTyping typing;
 				typing.load((*fileNameArrayItr).c_str());	/* ファイルを読み込む */
 				typing.loadRanking(((*fileNameArrayItr) + "-rank.dat").c_str());
 				main2(typing);
 				
-				rankingLoad(fileNameArrayItr);
 			}
+			rankingLoad(fileNameArrayItr);
 			break;
 		default:
 			break;
