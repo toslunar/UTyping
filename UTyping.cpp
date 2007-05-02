@@ -4,19 +4,11 @@
 #include <string.h>
 #include <vector>
 
+/*
+#define DEBUG_MODE 1
+//*/
+
 using namespace std;
-
-#define INFTY 1000000000
-
-enum{
-PHASE_READY,	/* 開始前 */
-PHASE_MAIN,	/* メイン */
-PHASE_RESULT,	/* スコア表示 */
-PHASE_FINISHED,	/* 名前入力後（ハイスコア処理完了） */
-PHASE_EXIT,	/* 終わったので消してもらう */
-};
-
-#define TYPE_BUFFER_LEN 8
 
 #define COLOR_EXCELLENT GetColor(255, 255, 0)
 #define COLOR_GOOD GetColor(0, 255, 0)
@@ -39,9 +31,86 @@ PHASE_EXIT,	/* 終わったので消してもらう */
 #define SCORE_TYPING 500
 /* タイピングで1文字確定させるごとに（1バイト文字、2バイト文字を問わない） */
 
+#define TYPE_BUFFER_LEN 8
+/* タイピングに用いるバッファの長さ */
+/* 名前の最大長にも影響する */
+
+#define RANKING_LEN 20
+/* ランキングに記録する順位が何位までか */
+
+#define RANKING_DRAW_LEN 5
+/* 何位ずつランキングを表示するか */
+/* 【 RANKING_LEN の約数でなければならない】 */
+
+/* ============================================================ */
+
+#define INFTY 1000000000
+
+enum{
+PHASE_READY,	/* 開始前 */
+PHASE_MAIN,	/* メイン */
+PHASE_RESULT,	/* スコア表示 */
+PHASE_FINISHED,	/* 名前入力後（ハイスコア処理完了） */
+PHASE_EXIT,	/* 終わったので消してもらう */
+};
+
 /* ============================================================ */
 
 /* 雑多な関数（予定） */
+
+bool readInt(int &n, FILE *fp){
+	int b[4];
+	for(int i=0; i<4; i++){
+		b[i] = getc(fp);
+		if(b[i] == EOF){
+			return false;
+		}
+	}
+	n = b[0] | b[1]<<8 | b[2]<<16 | b[3]<<24;
+	return true;
+}
+
+void writeInt(int n, FILE *fp){
+	int b[4];
+	for(int i=0; i<4; i++){
+		b[i] = n >> (8*i);
+	}
+	for(int i=0; i<4; i++){
+		putc(b[i], fp);
+	}
+	return;
+}
+
+bool readChar8(char *str, FILE *fp){
+	int b[8];
+	for(int i=0; i<8; i++){
+		b[i] = getc(fp);
+		if(b[i] == EOF){
+			return false;
+		}
+	}
+	for(int i=0; i<8; i++){
+		str[i] = b[i];
+	}
+	str[8] = '\0';
+	return true;
+}
+
+void writeChar8(char *str, FILE *fp){
+	int b[8];
+	for(int i=0; i<8; i++){
+		b[i] = str[i];
+	}
+	for(int i=1; i<8; i++){
+		if(b[i-1] == '\0'){
+			b[i] = '\0';
+		}
+	}
+	for(int i=0; i<8; i++){
+		putc(b[i], fp);
+	}
+	return;
+}
 
 void getDirFromPath(char *directoryName, const char *fileName){
 	strcpy(directoryName, fileName);
@@ -56,6 +125,20 @@ void getDirFromPath(char *directoryName, const char *fileName){
 	return;
 }
 
+#define fgetline(buf, fp) fgetline_1(buf, sizeof(buf), fp)
+/* fpから1行読む。ただし、最後の'\n'は削除 */
+
+char *fgetline_1(char *buf, size_t size, FILE *fp){
+	if(fgets(buf, size, fp) == NULL){
+		return NULL;
+	}
+	int len = strlen(buf) - 1;
+	if(buf[len] == '\n'){
+		buf[len] = '\0';
+	}
+	return buf; 
+}
+
 /* ============================================================ */
 
 class CScore{
@@ -67,22 +150,24 @@ public:
 	
 	void draw(int y, int num);
 	
-	bool operator ==(CScore score){
+	bool nameCmp(CScore &score);
+	
+	bool operator ==(CScore &score){
 		return m_score == score.m_score;
 	}
-	bool operator !=(CScore score){
+	bool operator !=(CScore &score){
 		return m_score != score.m_score;
 	}
-	bool operator <(CScore score){
+	bool operator <(CScore &score){
 		return m_score < score.m_score;
 	}
-	bool operator <=(CScore score){
+	bool operator <=(CScore &score){
 		return m_score <= score.m_score;
 	}
-	bool operator >(CScore score){
+	bool operator >(CScore &score){
 		return m_score > score.m_score;
 	}
-	bool operator >=(CScore score){
+	bool operator >=(CScore &score){
 		return m_score >= score.m_score;
 	}
 private:
@@ -133,21 +218,47 @@ void CScore::read(FILE *fp){
 	m_countPass = 0;
 	m_countAll = 0;
 	m_comboMax = 0;
+	readChar8(m_name, fp);
+	readInt(m_score, fp);
+	readInt(m_scoreAccuracy, fp);
+	readInt(m_scoreTyping, fp);
+	readInt(m_countExcellent, fp);
+	readInt(m_countGood, fp);
+	readInt(m_countFair, fp);
+	readInt(m_countPoor, fp);
+	readInt(m_countPass, fp);
+	readInt(m_countAll, fp);
+	readInt(m_comboMax, fp);
+/*
 	fscanf(fp, "%s%d%d%d%d%d%d%d%d%d%d", m_name, &m_score, &m_scoreAccuracy, &m_scoreTyping,
 		&m_countExcellent, &m_countGood, &m_countFair, &m_countPoor, &m_countPass,
 		&m_countAll, &m_comboMax);
+*/
 }
 
 void CScore::write(FILE *fp){
+/*
 	fprintf(fp, "%s %d %d %d %d %d %d %d %d %d %d\n", m_name, m_score, m_scoreAccuracy, m_scoreTyping,
 		m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
 		m_countAll, m_comboMax);
+*/
+	writeChar8(m_name, fp);
+	writeInt(m_score, fp);
+	writeInt(m_scoreAccuracy, fp);
+	writeInt(m_scoreTyping, fp);
+	writeInt(m_countExcellent, fp);
+	writeInt(m_countGood, fp);
+	writeInt(m_countFair, fp);
+	writeInt(m_countPoor, fp);
+	writeInt(m_countPass, fp);
+	writeInt(m_countAll, fp);
+	writeInt(m_comboMax, fp);
 }
 
 void CScore::draw(int y, int num){
 	char buf[256];
 	int width;
-	sprintf(buf, "%d: %8s %10d 点(%10d+%10d), ", num,
+	sprintf(buf, "%2d: %-8s %10d 点(%10d+%10d), ", num,
 		m_name, m_score, m_scoreAccuracy, m_scoreTyping);
 	DrawString(40, y + 6, buf, GetColor(255, 255, 255));
 	sprintf(buf, "(%4d/%4d/%4d/%4d/%4d), 最大 %4d コンボ",
@@ -155,6 +266,11 @@ void CScore::draw(int y, int num){
 	width = GetDrawStringWidth(buf, strlen(buf));
 	DrawString(600 - width, y + 26, buf, GetColor(255, 255, 255));
 }
+
+bool CScore::nameCmp(CScore &score){
+	return strcmp(m_name, score.m_name) == 0;
+}
+
 
 /* ============================================================ */
 
@@ -168,10 +284,10 @@ public:
 	void read();
 	void write();
 	
-	void draw();
+	void draw(int y, int rankBegin);
 private:
 	FILE *m_fp;
-	CScore m_score[5];
+	CScore m_score[RANKING_LEN];
 };
 
 CRanking::CRanking(){
@@ -182,11 +298,24 @@ CRanking::~CRanking(){
 	close();
 }
 
-/* ランクインなら順位(0-4)を返す。そうでなければ -1 を返す */
+/* ランクインなら順位(0～RANKING_LEN-1)を返す。そうでなければ -1 を返す */
 int CRanking::update(CScore &score){
-	for(int i = 0; i < 5; i++){
-		if(score > m_score[i]){	/* i位より大きい */
-			for(int j = 5 - 1; j > i; j--){	/* i位以降のデータを後ろに1つずつずらす */
+	int lastRank = RANKING_LEN - 1;	/* すでに入っている順位、入っていない場合は、RANKING_LEN - 1が都合が良い */
+	/* データをずらすときに、ランク外だったとしても、最後のランクだったとしても同じになるから。 */
+	for(int i = 0; i < RANKING_LEN; i++){
+		if(score.nameCmp(m_score[i])){
+			lastRank = i;
+			break;
+		}
+	}
+	for(int i = 0; i < RANKING_LEN; i++){
+		if(score > m_score[i]){	/* i位のスコアより真に大きいので、i位にランクイン */
+			if(i > lastRank){	/* すでにある自分のスコアより悪い（「同じ」ときもこの判定になる） */
+				return -1;
+			}
+			
+			/* i位以降、前の自分のデータ以前のデータを後ろに1つずつずらす */
+			for(int j = lastRank; j > i; j--){
 				m_score[j] = m_score[j-1];
 			}
 			m_score[i] = score;
@@ -200,9 +329,10 @@ void CRanking::open(const char *fileName){
 	if(m_fp != NULL){
 		close();
 	}
-	m_fp = fopen(fileName, "r+");	/* あればそれを開いて、 */
+	/* バイナリで開くので"b"が入る */
+	m_fp = fopen(fileName, "r+b");	/* あればそれを開いて、 */
 	if(m_fp == NULL){
-		m_fp = fopen(fileName, "w+");	/* なければ作成 */
+		m_fp = fopen(fileName, "w+b");	/* なければ作成 */
 		if(m_fp == NULL){
 			throw __LINE__;
 		}
@@ -218,7 +348,7 @@ void CRanking::close(){
 
 void CRanking::read(){
 	rewind(m_fp);
-	for(int i=0; i<5; i++){
+	for(int i=0; i<RANKING_LEN; i++){
 		m_score[i].read(m_fp);
 	}
 	rewind(m_fp);
@@ -227,16 +357,17 @@ void CRanking::read(){
 
 void CRanking::write(){
 	rewind(m_fp);
-	for(int i=0; i<5; i++){
+	for(int i=0; i<RANKING_LEN; i++){
 		m_score[i].write(m_fp);
 	}
 	rewind(m_fp);
 }
 
-void CRanking::draw(){
+/* rankBeginからRANKING_DRAW_LEN位分表示 */
+void CRanking::draw(int y, int rankBegin){
 	SetFontSize(16);
-	for(int i=0; i<5; i++){
-		m_score[i].draw(160 + 48 * i, i + 1);
+	for(int i = 0; i < RANKING_DRAW_LEN; i++){
+		m_score[rankBegin + i].draw(y + 48 * i, rankBegin + i + 1);
 	}
 }
 
@@ -513,19 +644,11 @@ void CTyping::load(const char *fileName){
 	double time, timeLast;
 	bool flag = true;
 	while(flag){
-		if(fgets(tmpBuf,sizeof(tmpBuf),fp) == NULL){
+		if(fgetline(tmpBuf, fp) == NULL){
 			m_timeLength = timeLast;	/* 譜面終了時刻を記録 */
 			flag = false;
 			time = INFTY;
 		}else{
-			/* 改行コードは消す */
-			int len = strlen(tmpBuf);
-			if(len <= 0){
-				continue;
-			}
-			if(tmpBuf[len - 1] == '\n'){
-				tmpBuf[len - 1] = '\0';
-			}
 			int n;
 			switch(tmpBuf[0]){
 			case '+':	/* 打つ歌詞 */
@@ -567,8 +690,7 @@ void CTyping::load(const char *fileName){
 				}
 				break;
 			case '@':
-				strcpy(m_musicFileName, directoryName);
-				strcat(m_musicFileName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
+				sprintf(m_musicFileName, "%s%s", directoryName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
 				continue;
 			default:
 				continue;
@@ -938,6 +1060,9 @@ void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iter
 
 void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition){
 	double timeDiff = time - (*lyricsPosition).timeJust;
+#ifdef DEBUG_MODE
+	double tmp = timeDiff;
+#endif
 	int scoreCombo = SCORE_COMBO * m_combo;	/* コンボ数を増やす前にコンボ数ボーナスを計算 */
 	if(scoreCombo > SCORE_COMBO_MAX){
 		scoreCombo = SCORE_COMBO;
@@ -976,11 +1101,15 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
 		m_comboMax = m_combo;
 	}
+#ifndef DEBUG_MODE
 	if(m_combo >= 10){	/* コンボが10を超えたらコンボ数を表示 */
 		sprintf(buf, "%s %d", strAccuracy, m_combo);
 	}else{
 		sprintf(buf, "%s", strAccuracy);
 	}
+#else
+	sprintf(buf, "%+lf", tmp);
+#endif
 	setText(buf, color);
 	
 	m_scoreAccuracy += score;	/* 得点加算 */
@@ -1072,7 +1201,7 @@ void CTyping::draw(){
 		if(!(*i).isBlockStart){	/* 音節の最初でないなら無視 */
 			continue;
 		}
-		if((*i).ch == '\n'){	/* 最後 */
+		if((*i).ch == '\n'){	/* 最後にいる番兵だから表示しない */
 			continue;
 		}
 		double timeDiff = time - (*i).timeJust;	/* ちょうど打つ位置になってから何秒後か */
@@ -1231,6 +1360,32 @@ void CTyping::drawResult(){
 
 /* ============================================================ */
 
+class CInfo{
+public:
+	void load(CTyping &typing);
+	void loadRanking(CRanking &ranking);
+public:
+	char m_title[256];
+	char m_artist[256];
+	char m_fumenAuthor[256];
+	char m_fumenFileName[256];
+	char m_rankingFileName[256];
+private:
+	
+};
+
+void CInfo::load(CTyping &typing){
+	typing.load(m_fumenFileName);
+	typing.loadRanking(m_rankingFileName);
+}
+
+void CInfo::loadRanking(CRanking &ranking){
+	ranking.open(m_rankingFileName);
+	ranking.read();
+}
+
+/* ============================================================ */
+
 void main2(CTyping &typing){
 	while(1){
 		if(ProcessMessage() == -1){
@@ -1254,45 +1409,62 @@ void main2(CTyping &typing){
 	}
 }
 
-CRanking ranking;
-vector<string> fileNameArray;
+vector<CInfo> g_infoArray;
 
-vector<string>::iterator prevName(vector<string>::iterator itr){
-	if(itr == fileNameArray.begin()){
-		itr = fileNameArray.end();
+vector<CInfo>::iterator prevInfo(vector<CInfo>::iterator itr){
+	if(itr == g_infoArray.begin()){
+		itr = g_infoArray.end();
 	}
 	itr--;
 	return itr;
 }
 
-vector<string>::iterator nextName(vector<string>::iterator itr){
+vector<CInfo>::iterator nextInfo(vector<CInfo>::iterator itr){
 	itr++;
-	if(itr == fileNameArray.end()){
-		itr = fileNameArray.begin();
+	if(itr == g_infoArray.end()){
+		itr = g_infoArray.begin();
 	}
 	return itr;
 }
 
-void rankingLoad(vector<string>::iterator itr){
-	ranking.open(((*itr) + "-rank.dat").c_str());
-	ranking.read();
-}
-
 void main1(){
 	{
+		g_infoArray.clear();
 		FILE *fp;
 		fp = fopen("UTyping_list.txt", "r");
 		if(fp == NULL){
 			throw __LINE__;
 		}
 		char buf[256];
-		while(fscanf(fp, "%s", buf) >= 1){
-			fileNameArray.push_back(string(buf));
+		while(fgetline(buf, fp) != NULL){
+			FILE *fpInfo;
+			CInfo info;
+			fpInfo = fopen(buf, "r");	/* 情報ファイルを開く */
+			if(fp == NULL){	/* 開けないファイルは無視 */
+				continue;
+			}
+			char dirName[256];	/* ディレクトリは情報ファイルを基準とする */
+			getDirFromPath(dirName, buf);
+			char buf1[256], buf2[256], *chk;
+			fgetline(info.m_title, fpInfo);	/* 1行目にタイトル */
+			fgetline(info.m_artist, fpInfo);	/* 2行目に原作者 */
+			fgetline(info.m_fumenAuthor, fpInfo);	/* 3行目に譜面作者 */
+			fgetline(buf1, fpInfo);
+			chk = fgetline(buf2, fpInfo);
+			fclose(fpInfo);
+			if(chk == NULL){	/* 全行読み込めなかった */
+				continue;
+			}
+			sprintf(info.m_fumenFileName, "%s%s", dirName, buf1);	/* 4行目に譜面ファイル名 */
+			sprintf(info.m_rankingFileName, "%s%s", dirName, buf2);	/* 5行目にハイスコアファイル名 */
+			g_infoArray.push_back(info);
 		}
 		fclose(fp);
 	}
-	vector<string>::iterator fileNameArrayItr = fileNameArray.begin();
-	rankingLoad(fileNameArrayItr);
+	vector<CInfo>::iterator infoArrayItr = g_infoArray.begin();
+	CRanking ranking;
+	(*infoArrayItr).loadRanking(ranking);
+	int rankingPos = 0;
 	
 	while(1){
 		if(ProcessMessage() == -1){
@@ -1303,24 +1475,35 @@ void main1(){
 		case CTRL_CODE_ESC:	/* 終了 */
 			goto L1;
 		case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
-			fileNameArrayItr = prevName(fileNameArrayItr);
-			rankingLoad(fileNameArrayItr);
+			infoArrayItr = prevInfo(infoArrayItr);
+			(*infoArrayItr).loadRanking(ranking);
+			rankingPos = 0;
 			break;
 		case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
-			fileNameArrayItr = nextName(fileNameArrayItr);
-			rankingLoad(fileNameArrayItr);
+			infoArrayItr = nextInfo(infoArrayItr);
+			(*infoArrayItr).loadRanking(ranking);
+			rankingPos = 0;
+			break;
+		case CTRL_CODE_LEFT:	/* 上位を表示 */
+			if(rankingPos == 0){
+				rankingPos = RANKING_LEN;
+			}
+			rankingPos -= RANKING_DRAW_LEN;
+			break;
+		case CTRL_CODE_RIGHT:	/* 下位を表示 */
+			rankingPos += RANKING_DRAW_LEN;
+			if(rankingPos == RANKING_LEN){
+				rankingPos = 0;
+			}
 			break;
 		case CTRL_CODE_CR:	/* ゲーム開始 */
 			ranking.close();
 			{
-				
 				CTyping typing;
-				typing.load((*fileNameArrayItr).c_str());	/* ファイルを読み込む */
-				typing.loadRanking(((*fileNameArrayItr) + "-rank.dat").c_str());
+				(*infoArrayItr).load(typing);	/* ゲーム情報「に」譜面・ハイスコアのファイルをロード */
 				main2(typing);
-				
 			}
-			rankingLoad(fileNameArrayItr);
+			(*infoArrayItr).loadRanking(ranking);
 			break;
 		default:
 			break;
@@ -1328,16 +1511,27 @@ void main1(){
 		SetDrawScreen(DX_SCREEN_BACK);
 		ClearDrawScreen();
 		
-		DrawLine(10, 80, 630, 80, GetColor(128, 128, 128));
+		DrawLine(10, 80, 630, 80, GetColor(96, 96, 96));
 		DrawLine(40, 160, 600, 160, GetColor(64, 64, 64));
-		DrawLine(10, 400, 630, 400, GetColor(128, 128, 128));
-		/* 現在選択されている譜面ファイル名を書く */
-		SetFontSize(24);
-		DrawString(50, 40 - 12, (*prevName(fileNameArrayItr)).c_str(), GetColor(192, 192, 192));
-		DrawString(50, 120 - 12, (*fileNameArrayItr).c_str(), GetColor(255, 255, 255));
-		DrawString(50, 440 - 12, (*nextName(fileNameArrayItr)).c_str(), GetColor(192, 192, 192));
+		DrawLine(10, 400, 630, 400, GetColor(96, 96, 96));
 		
-		ranking.draw();
+		/* タイトルを書く */
+		SetFontSize(24);
+		DrawString(50, 40 - 12, (*prevInfo(infoArrayItr)).m_title, GetColor(128, 128, 128));
+		DrawString(50, 120 - 12, (*infoArrayItr).m_title, GetColor(255, 255, 255));
+		DrawString(50, 440 - 12, (*nextInfo(infoArrayItr)).m_title, GetColor(128, 128, 128));
+		
+		SetFontSize(16);
+		int width;
+		width = GetDrawFormatStringWidth("%s", (*infoArrayItr).m_artist);
+		DrawFormatString(590 - width, 154 - 38, GetColor(255, 255, 255),
+			"%s", (*infoArrayItr).m_artist);
+		
+		width = GetDrawFormatStringWidth("(譜面作成　%s)", (*infoArrayItr).m_fumenAuthor);
+		DrawFormatString(590 - width, 154 - 16, GetColor(255, 255, 255),
+			"(譜面作成　%s)", (*infoArrayItr).m_fumenAuthor);
+		
+		ranking.draw(160, rankingPos);
 		
 		ScreenFlip();
 	}
@@ -1348,7 +1542,11 @@ L1:
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow){
 	ChangeWindowMode(TRUE);
-	SetMainWindowText("UTyping");
+#ifndef DEBUG_MODE
+	SetMainWindowText("UTyping (c)2007 tos");
+#else
+	SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
+#endif
 	if(DxLib_Init() == -1){
 		return -1;
 	}
