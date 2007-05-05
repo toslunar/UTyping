@@ -2,8 +2,12 @@
 
 #include <stdio.h>
 #include <string.h>
+
 #include <vector>
 #include <deque>
+#include <bitset>
+
+#include "utuid.h"
 
 /*
 #define DEBUG_MODE 1
@@ -45,6 +49,11 @@ using namespace std;
 
 /* ============================================================ */
 
+#define W_WINDOW 640
+#define H_WINDOW 480
+
+/* ============================================================ */
+
 #define INFTY 1000000000
 
 enum{
@@ -58,6 +67,19 @@ PHASE_EXIT,	/* 終わったので消してもらう */
 enum{
 BEATLINE_BAR,
 BEATLINE_BEAT,
+};
+
+enum{
+CHALLENGE_HIDDEN,	/* 隠れるの */
+CHALLENGE_SUDDEN,	/* 突然現れるの */
+CHALLENGE_STEALTH,	/* 見えないの */
+CHALLENGE_LYRICS_STEALTH,	/* 歌詞が見えないの */
+CHALLENGE_SPEED_X2,	/* 倍速で流れるの */
+CHALLENGE_SIN,
+CHALLENGE_COS,
+CHALLENGE_TAN,
+
+CHALLENGE_NUM
 };
 
 /* ============================================================ */
@@ -76,7 +98,8 @@ void getDirFromPath(char *directoryName, const char *fileName);
 void getOrdinal(char *buf, int n);
 /* 序数を取得 */
 
-void newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter);
+HANDLE newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter);
+void deleteThread(HANDLE handle);
 
 bool readInt(int &n, FILE *fp){
 	int b[4];
@@ -180,10 +203,56 @@ void getOrdinal(char *buf, int n){
 }
 
 /* DWORD WINAPI (*func)(LPVOID)を新しいスレッドとして作る */
-void newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter){
+HANDLE newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter){
 	DWORD dwID;
-	CloseHandle(CreateThread(NULL,0,lpStartAddress,lpParameter,0,&dwID));
+	return CreateThread(NULL,0,lpStartAddress,lpParameter,0,&dwID);
 }
+
+void deleteThread(HANDLE handle){
+	if(!TerminateThread(handle, 0)){
+		throw __LINE__;
+	}
+	CloseHandle(handle);
+}
+
+void getDateStr(char *buf){
+	DATEDATA date;
+	GetDateTime(&date);
+	sprintf(buf, "%d/%02d/%02d %02d:%02d:%02d", date.Year, date.Mon,
+		date.Day, date.Hour, date.Min, date.Sec);
+}
+
+void outputError(char *str){
+	char buf[256];
+	getDateStr(buf);
+	FILE *fp;
+	fp = fopen("エラーログ.txt","a");
+	fprintf(fp, "[%s] %s\n", buf, str);
+	fclose(fp);
+}
+
+
+/* ============================================================ */
+
+bool checkUTypingUserID(){
+	FILE *fp;
+	fp = fopen("UTyping_ID.txt", "r");
+	if(!fp){
+		throw "UTyping_ID.txt が開けません。";
+	}
+	int ID[3];
+	getUTypingUserID(ID);
+	for(int i=0; i<3; i++){
+		int tmp;
+		fscanf(fp, "%X", &tmp);
+		if(tmp != ID[i]){
+			return false;
+		}
+	}
+	fclose(fp);
+	return true;
+}
+
 /* ============================================================ */
 
 struct KeyboardInput{
@@ -375,7 +444,7 @@ void CScore::draw(int y, char *str, int fontHandle){
 	sprintf(buf, "(%4d/%4d/%4d/%4d/%4d), 最大 %4d コンボ",
 		m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass, m_comboMax);
 	width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandle);
-	DrawStringToHandle(600 - width, y + 26, buf, GetColor(255, 255, 255), fontHandle);
+	DrawStringToHandle((W_WINDOW - 40) - width, y + 26, buf, GetColor(255, 255, 255), fontHandle);
 }
 
 bool CScore::nameCmp(CScore &score){
@@ -627,11 +696,14 @@ public:
 	~CTyping();
 	// void loadDictionary(const char *fileName);
 	/* ローマ字辞書はコンストラクタで読む */
-	void load(const char *fileName);
-	void loadRanking(const char *fileName);
+	void load(const char *fumenFileName, const char *rankingFileName);
+	void unload();
+	void setChallenge(bitset<CHALLENGE_NUM> &challenge);
 	void keyboard(char ch, int timeCount);
 	bool idle();
 private:
+	void loadRanking(const char *fileName);
+	void unloadRanking();
 	void setText(const char *str, int color);
 	void setTime();
 	double getTime();
@@ -641,7 +713,8 @@ private:
 		vector<Lyrics>::iterator &lyricsPosition, double time, bool saiki);
 	void scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
 	void scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition);
-	int getDrawPos(double timeDiff);
+	int getDrawPosX(double timeDiff);
+	int getDrawPosY(int x);
 public:
 	void draw();
 	void drawResult();
@@ -653,13 +726,13 @@ private:
 	
 	double m_timeLength;	/* 譜面の（時間の）長さ */
 	
-	char m_typeBuffer[TYPE_BUFFER_LEN + 1];
-	int m_typeBufferLen;
-	
 	vector<LyricsKanji> m_lyricsKanji;
 	vector<LyricsKanji>::iterator m_lyricsKanjiPosition;
 	
 	vector<BeatLine> m_beatLine;
+	
+	char m_typeBuffer[TYPE_BUFFER_LEN + 1];
+	int m_typeBufferLen;
 	
 	int m_phase;
 	
@@ -676,7 +749,7 @@ private:
 	int m_countGood;
 	int m_countFair;
 	int m_countPoor;
-	int m_countPass;
+	int m_countPass;	/* スコア表示時に使う */
 	int m_countAll;
 	
 	CRanking m_ranking;	/* ハイスコアのデータ */
@@ -685,6 +758,8 @@ private:
 	char m_text[256];
 	int m_textColor;
 	double m_textTime;
+	
+	bitset<CHALLENGE_NUM> m_challenge;
 	
 	char m_musicFileName[256];
 	
@@ -697,14 +772,14 @@ CTyping::CTyping(){
 	FILE *fp;
 	fp = fopen("convert.dat","r");
 	if(fp == NULL){
-		throw __LINE__;
+		throw "convert.dat が開けません。";
 	}
 	char buf[256], buf1[256], buf2[256], buf3[256];
 	while(fgets(buf, sizeof(buf), fp)!=NULL){
 		int n=sscanf(buf, "%s%s%s", buf1, buf2, buf3);
 		/* ローマ字、日本語、残るローマ字 */
 		if(n<2){
-			throw __LINE__;
+			throw "convert.dat の形式が不正です。";
 		}
 		int len;
 		if(n == 2){
@@ -727,52 +802,33 @@ CTyping::CTyping(){
 	
 	m_fontHandleNormal = CreateFontToHandle(NULL, 16, 3);
 	m_fontHandleBig = CreateFontToHandle("ＭＳ 明朝", 36, 2);
-	
-	//timeBeginPeriod(1);	/* timeGetTimeの精度を上げる */
 }
 
 CTyping::~CTyping(){
+	unload();
 	DeleteFontToHandle(m_fontHandleNormal);	/* フォントを削除 */
 	DeleteFontToHandle(m_fontHandleBig);
-	
-	if(CheckMusic()){	/* 音楽が流れてたら止める */
-		StopMusic();
-	}
-	//timeEndPeriod(1);	/* timeGetTimeの精度を元に戻す */
 }
 
-void CTyping::load(const char *fileName){
+void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	char directoryName[256];
-	getDirFromPath(directoryName, fileName);
+	getDirFromPath(directoryName, fumenFileName);
 	FILE *fp;
-	fp = fopen(fileName,"r");
+	fp = fopen(fumenFileName,"r");
 	if(fp == NULL){
-		throw __LINE__;
+		throw "譜面ファイルが開けません。";
 	}
 	
 	/* 読み込む前に全消去 */
 	m_lyrics.clear();
 	m_lyricsKanji.clear();
+	m_beatLine.clear();
 	strcpy(m_musicFileName, "");
 	
 	/* 歌詞のかたまりの数（=m_count○○の和の最大値）を数えるために0に */
 	m_countAll = 0;
 	
 	/* 読み込み開始 */
-
-#if 0
-	/* 番兵として最初に' ',0を追加しておく */
-	{
-		Lyrics ly;
-		ly.ch = ' ';
-		ly.timeJust = 0;
-		ly.timeUntil = 0;
-		ly.isBlockStart = true;
-		ly.isTyped = true;
-		ly.isScoringTarget = false;
-		m_lyrics.push_back(ly);
-	}
-#endif
 	
 	char tmpBuf[256];
 	char buf[256], bufLast[256];
@@ -790,7 +846,7 @@ void CTyping::load(const char *fileName){
 			case '+':	/* 打つ歌詞 */
 				n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
 				if(n < 2){
-					throw __LINE__;
+					throw "譜面が不正です。(+)";
 				}
 #ifdef DEBUG_MODE
 				strcpy(buf, "+");
@@ -800,11 +856,11 @@ void CTyping::load(const char *fileName){
 				{
 					char *ptr = strtok(tmpBuf + 1, " \t\n");	/* スペースで区切られるまでの部分を取り出す */
 					if(ptr == NULL){
-						throw __LINE__;
+						throw "譜面が不正です。(*)";
 					}
 					n = sscanf(ptr, "%lf", &time);	/* 時刻を読む */
 					if(n < 1){
-						throw __LINE__;
+						throw "譜面が不正です。(*)";
 					}
 					ptr = strtok(NULL, "");	/* 残りの部分を取り出す */
 					LyricsKanji lk;
@@ -819,7 +875,7 @@ void CTyping::load(const char *fileName){
 				{
 					n = sscanf(tmpBuf + 1, "%lf", &time);	/* 時刻を読む */
 					if(n < 1){
-						throw __LINE__;
+						throw "譜面が不正です。(=,-)";
 					}
 					BeatLine bl;
 					if(tmpBuf[0] == '='){
@@ -834,7 +890,7 @@ void CTyping::load(const char *fileName){
 			case '/':	/* 区切り */
 				n = sscanf(tmpBuf + 1, "%lf", &time);
 				if(n < 1){
-					throw __LINE__;
+					throw "譜面が不正です。(/)";
 				}
 				strcpy(buf, " ");
 				
@@ -932,11 +988,23 @@ void CTyping::load(const char *fileName){
 	m_countPoor = 0;
 	
 	strcpy(m_text, "");
+	
+	/* チャレンジを初期化（Defaultは何も変なことしない） */
+	m_challenge.reset();
+	
+	loadRanking(rankingFileName);
+	/* ランキング読み込み */
 }
 
-void CTyping::loadRanking(const char *fileName){
-	m_ranking.open(fileName);
-	m_ranking.read();
+void CTyping::unload(){
+	if(CheckMusic()){	/* 音楽が流れてたら止める */
+		StopMusic();
+	}
+	unloadRanking();
+}
+
+void CTyping::setChallenge(bitset<CHALLENGE_NUM> &challenge){
+	m_challenge = challenge;
 }
 
 void CTyping::keyboard(char ch, int timeCount){
@@ -1084,6 +1152,15 @@ bool CTyping::idle(){	/* 問題なければ true を返す */
 		}
 	}
 	return true;
+}
+
+void CTyping::loadRanking(const char *fileName){
+	m_ranking.open(fileName);
+	m_ranking.read();
+}
+
+void CTyping::unloadRanking(){
+	m_ranking.close();
 }
 
 void CTyping::setText(const char *str, int color){	/* 表示文字列を設定 */
@@ -1293,26 +1370,57 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 	(*lyricsPosition).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
 }
 
-int CTyping::getDrawPos(double timeDiff){
-	return (int)(100 - timeDiff * 250.0);
-}
+#define CIRCLE_SPEED 250.0
 
 #define Y_INFO 10
 #define Y_INFO2 40
+#define X_CIRCLE 100
 #define Y_CIRCLE 170
 #define R_CIRCLE 30
 #define Y0_BAR 110
 #define Y1_BAR 220
 #define Y0_BEAT 125
 #define Y1_BEAT 210
-#define X_ACCURACY (100 - R_CIRCLE)
-#define Y_ACCURACY 100
+#define X_ACCURACY (X_CIRCLE - R_CIRCLE)
+#define Y_ACCURACY 90
 #define Y_LYRICS (Y_CIRCLE + R_CIRCLE + 30)
 #define X_LYRICS_KANJI 10
 #define Y_LYRICS_KANJI (Y_LYRICS + 35)
 #define Y_LYRICS_KANJI_NEXT (Y_LYRICS + 70)
 #define Y_LYRICS_BIG 340
 #define Y_BUFFER 390
+
+#define X_HIDDEN (X_CIRCLE + R_CIRCLE + 60)
+/* Hiddenで見える左の限界 */
+#define X_SUDDEN (X_HIDDEN + R_CIRCLE)
+/* Suddenで見える右の限界 */
+/* 両方かけたときに、ちょうど半円ぐらい見える */
+
+#define SCALE_FUNCTION 60.0
+/* 判定位置の円を原点とする座標と思うときの、長さ1に相当する画面の長さ */
+
+int CTyping::getDrawPosX(double timeDiff){
+	if(m_challenge.test(CHALLENGE_SPEED_X2)){	/* 倍速モード */
+		return X_CIRCLE + (int)(-timeDiff * (CIRCLE_SPEED * 2));
+	}else{
+		return X_CIRCLE + (int)(-timeDiff * CIRCLE_SPEED);
+	}
+}
+
+int CTyping::getDrawPosY(int x){
+	x -= X_CIRCLE;	/* 画面の0を座標の0とあわせる */
+	double y = 0;
+	if(m_challenge.test(CHALLENGE_SIN)){
+		y += sin(x / SCALE_FUNCTION) * SCALE_FUNCTION;
+	}
+	if(m_challenge.test(CHALLENGE_COS)){
+		y += cos(x / SCALE_FUNCTION) * SCALE_FUNCTION;
+	}
+	if(m_challenge.test(CHALLENGE_TAN)){
+		y += tan(x / SCALE_FUNCTION) * SCALE_FUNCTION;
+	}
+	return (int)-y;	/* スクリーン座標は上下が逆*/
+}
 
 void CTyping::draw(){
 	if(m_phase >= PHASE_RESULT){	/* スコア表示以降 */
@@ -1358,89 +1466,84 @@ void CTyping::draw(){
 	}
 #endif
 	
-	/* 表示する歌詞を出力 */
-	while(time >= (*m_lyricsKanjiPosition).timeEnd){	/* 表示終了しているなら次に進む */
-		m_lyricsKanjiPosition++;
-	}
-	{
-		int strWidth = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "Next: ");
-		DrawFormatStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT,
-			GetColor(255, 255, 255), m_fontHandleNormal, "Next: ");
-		if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
-			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI,
-				GetColor(255, 255, 255), m_fontHandleNormal,
-				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* 出力 */
-			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
-				GetColor(255, 255, 255), m_fontHandleNormal,
-				"%s", (*(m_lyricsKanjiPosition + 1)).str.c_str());	/* Nextを出力 */
-		}else{
-			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
-				GetColor(255, 255, 255), m_fontHandleNormal,
-				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* Nextを出力 */
-		}
-	}
-	
 	/* 小節線、拍線を表示 */
 	for(vector<BeatLine>::iterator i = m_beatLine.begin(); i != m_beatLine.end(); i++){
 		double timeDiff = time - (*i).time;	/* 通り過ぎる位置になってから何秒後か */
-		int pos = getDrawPos(timeDiff);
-		if(pos < 0 || pos >= 640){	/* 画面外 */
+		int posX = getDrawPosX(timeDiff);
+		if(posX < 0 || posX >= W_WINDOW){	/* 画面外 */
 			continue;
 		}
+		int posY = getDrawPosY(posX);
 		if((*i).type == BEATLINE_BAR){
-			DrawLine(pos, Y0_BAR, pos, Y1_BAR, GetColor(255, 255, 255));
+			DrawLine(posX, Y0_BAR  + posY, posX, Y1_BAR  + posY, GetColor(255, 255, 255));
 		}else{	/* == BEATLINE_BEAT */
-			DrawLine(pos, Y0_BEAT, pos, Y1_BEAT, GetColor(128, 128, 128));
+			DrawLine(posX, Y0_BEAT + posY, posX, Y1_BEAT + posY, GetColor(128, 128, 128));
 		}
 	}
 	
-	/* 円を表示 */
-	for(vector<Lyrics>::iterator i = m_lyrics.end() - 1; i != m_lyrics.begin() - 1; i--){
-		if(!(*i).isBlockStart){	/* 音節の最初でないなら無視 */
-			continue;
+	if(!m_challenge.test(CHALLENGE_STEALTH)){	/* Stealthなら表示しない */
+		int xMin = 0, xMax = W_WINDOW;	/* （Hidden, Sudden のための）描く左端と右端 */
+		if(m_challenge.test(CHALLENGE_HIDDEN)){
+			xMin = X_HIDDEN;
 		}
-		if((*i).ch == '\n'){	/* 最後にいる番兵だから表示しない */
-			continue;
+		if(m_challenge.test(CHALLENGE_SUDDEN)){
+			xMax = X_SUDDEN;
 		}
-		double timeDiff = time - (*i).timeJust;	/* ちょうど打つ位置になってから何秒後か */
-		int pos = getDrawPos(timeDiff);
-		if(pos < -R_CIRCLE || pos >= 640 + R_CIRCLE){	/* 画面外 */
-			continue;
-		}
-		
-		if((*i).ch == ' '){	/* 歌詞の切れ目 */
-			if(timeDiff < 0.0){	/* 切れ目は判定位置に来るより前のときだけ表示 */
-				DrawCircle(pos, Y_CIRCLE, R_CIRCLE, GetColor(128, 128, 128), false);	/* 灰色の円を流す */
+		SetDrawArea(xMin, 0, xMax, H_WINDOW);	/* 描画範囲を制限 */
+		/* 円と、円の下の歌詞を表示 */
+		for(vector<Lyrics>::iterator i = m_lyrics.end() - 1; i != m_lyrics.begin() - 1; i--){
+			if(!(*i).isBlockStart){	/* 音節の最初でないなら無視 */
+				continue;
+			}
+			if((*i).ch == '\n'){	/* 最後にいる番兵だから表示しない */
+				continue;
+			}
+			double timeDiff = time - (*i).timeJust;	/* ちょうど打つ位置になってから何秒後か */
+			int posX = getDrawPosX(timeDiff);
+			if(posX < -R_CIRCLE || posX >= W_WINDOW + R_CIRCLE){	/* 画面外 */
+				continue;
+			}
+			int posY = getDrawPosY(posX);
+			
+			if((*i).ch == ' '){	/* 歌詞の切れ目 */
+				if(timeDiff < 0.0){	/* 切れ目は判定位置に来るより前のときだけ表示 */
+					DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(128, 128, 128), false);
+					/* 灰色の円を流す */
+				}
+			}
+			char buf[256];
+			int len = 0;
+			{
+				vector<Lyrics>::iterator j = i;
+				do{	/* ブロック内の未タイプの文字をbufに格納 */
+					if(!(*j).isTyped){
+						buf[len++] = (*j).ch;
+					}
+					j++;
+				}while(!(*j).isBlockStart);
+			}
+			buf[len] = '\0';
+			if(len == 0){	/* すべてタイプされていた */
+				continue;
+			}
+			int Color;
+			if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
+				Color = GetColor(255, 0, 0);
+			}else{
+				Color = GetColor(0, 0, 255);
+			}
+			DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
+			DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+			if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){	/* LyricsStealthなら表示しない */
+				int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleNormal);
+				DrawStringToHandle(posX - strWidth / 2, Y_LYRICS + posY, buf,
+					GetColor(255, 255, 255), m_fontHandleNormal);	/* 流れる円に書かれる文字 */
 			}
 		}
-		char buf[256];
-		int len = 0;
-		{
-			vector<Lyrics>::iterator j = i;
-			do{	/* ブロック内の未タイプの文字をbufに格納 */
-				if(!(*j).isTyped){
-					buf[len++] = (*j).ch;
-				}
-				j++;
-			}while(!(*j).isBlockStart);
-		}
-		buf[len] = '\0';
-		if(len == 0){	/* すべてタイプされていた */
-			continue;
-		}
-		int Color;
-		if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
-			Color = GetColor(255, 0, 0);
-		}else{
-			Color = GetColor(0, 0, 255);
-		}
-		DrawCircle(pos, Y_CIRCLE, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
-		DrawCircle(pos, Y_CIRCLE, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
-		int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleNormal);
-		DrawStringToHandle(pos - strWidth / 2, Y_LYRICS, buf,
-			GetColor(255, 255, 255), m_fontHandleNormal);	/* 流れる円に書かれる文字 */
+		SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
 	}
-	DrawCircle(100, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), FALSE);	/* 判定位置の円 */
+	
+	DrawCircle(X_CIRCLE, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), FALSE);	/* 判定位置の円 */
 	
 	{	/* メッセージ表示 */
 		double timeDiff = time - m_textTime;
@@ -1460,21 +1563,45 @@ void CTyping::draw(){
 		}
 	}
 	
-	/* いま対象になっている歌詞(m_lyricsPositionから次の歌詞まで)を表示 */
-	if((*m_lyricsPosition).ch != '\n'){	/* 全ての歌詞の後ではない */
-		char buf[256];
-		int len = 0;
-		{
-			vector<Lyrics>::iterator i = m_lyricsPosition;
-			do{	/* ブロック内の未タイプの文字をbufに格納 */
-				buf[len++] = (*i).ch;
-				i++;
-			}while(!(*i).isBlockStart);
+	if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){
+		/* 表示する歌詞を出力 */
+		while(time >= (*m_lyricsKanjiPosition).timeEnd){	/* 表示終了しているなら次に進む */
+			m_lyricsKanjiPosition++;
 		}
-		buf[len] = '\0';
-		int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-		DrawStringToHandle(100 - strWidth / 2, Y_LYRICS_BIG, buf,
-			GetColor(255, 255, 255), m_fontHandleBig);
+		int strWidth = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "Next: ");
+		DrawFormatStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT,
+			GetColor(255, 255, 255), m_fontHandleNormal, "Next: ");
+		if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* 出力 */
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*(m_lyricsKanjiPosition + 1)).str.c_str());	/* Nextを出力 */
+		}else{
+			DrawFormatStringToHandle(X_LYRICS_KANJI + strWidth, Y_LYRICS_KANJI_NEXT,
+				GetColor(255, 255, 255), m_fontHandleNormal,
+				"%s", (*m_lyricsKanjiPosition).str.c_str());	/* Nextを出力 */
+		}
+	}
+	
+	if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){
+		/* いま対象になっている歌詞(m_lyricsPositionから次の歌詞まで)を表示 */
+		if((*m_lyricsPosition).ch != '\n'){	/* 全ての歌詞の後ではない */
+			char buf[256];
+			int len = 0;
+			{
+				vector<Lyrics>::iterator i = m_lyricsPosition;
+				do{	/* ブロック内の未タイプの文字をbufに格納 */
+					buf[len++] = (*i).ch;
+					i++;
+				}while(!(*i).isBlockStart);
+			}
+			buf[len] = '\0';
+			int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
+			DrawStringToHandle(100 - strWidth / 2, Y_LYRICS_BIG, buf,
+				GetColor(255, 255, 255), m_fontHandleBig);
+		}
 	}
 	
 	/* タイプした文字を表示 */
@@ -1544,8 +1671,8 @@ void CTyping::drawResult(){
 			strWidth = GetDrawFormatStringWidthToHandle( m_fontHandleBig,
 				"%d 位にランクインしました", m_rank + 1);
 			int boxWidth = strWidth + 100;
-			if(boxWidth > 640){
-				boxWidth = 640;
+			if(boxWidth > W_WINDOW){
+				boxWidth = W_WINDOW;
 			}
 			DrawBox(320 - boxWidth / 2, 200, 320 + boxWidth/2, 280, GetColor(255, 255, 255), TRUE);
 			DrawFormatStringToHandle(320 - strWidth / 2, 240 - 18,
@@ -1563,10 +1690,14 @@ public:
 	CMusicInfo();
 	CMusicInfo(const CMusicInfo &info);
 	~CMusicInfo();
+	
 	void load(CTyping &typing);
-	void loadRanking(CRanking &ranking);
+	
+	void loadRanking();
+	void unloadRanking();
+	
 	void draw(int y, int color);
-	void CMusicInfo::drawRanking(CRanking &ranking, int y, int rankBegin, int rankLen);
+	void drawRanking(int y, int rankBegin, int rankLen);
 private:
 	void createFont();
 public:
@@ -1576,6 +1707,7 @@ public:
 	char m_fumenFileName[256];
 	char m_rankingFileName[256];
 private:
+	CRanking m_ranking;
 	static int m_count;	/* 作られているCMusicInfoの個数 */
 	static int m_fontHandleNormal;
 	static int m_fontHandleTitle;
@@ -1609,34 +1741,37 @@ CMusicInfo::~CMusicInfo(){
 }
 
 void CMusicInfo::load(CTyping &typing){
-	typing.load(m_fumenFileName);
-	typing.loadRanking(m_rankingFileName);
+	typing.load(m_fumenFileName, m_rankingFileName);
 }
 
-/* ランキングを読み込む。閉じるのはCRankingのデストラクタにでもしてもらうのが良い */
-void CMusicInfo::loadRanking(CRanking &ranking){
-	ranking.open(m_rankingFileName);
-	ranking.read();
+/* ランキングを読み込む */
+void CMusicInfo::loadRanking(){
+	m_ranking.open(m_rankingFileName);
+	m_ranking.read();
 }
 
-void CMusicInfo::draw(int y, int color){
+void CMusicInfo::unloadRanking(){
+	m_ranking.close();
+}
+
+void CMusicInfo::draw(int y, int color){	/* 曲情報をyから高さ60で描く */
 	/* タイトル */
-	DrawStringToHandle(50, y + (40 - 30/2), m_title, color, m_fontHandleTitle);
+	DrawStringToHandle(30, y + (30 - 30/2), m_title, color, m_fontHandleTitle);
 	
 	int width;
 	/* アーティスト */
 	width = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "%s", m_artist);
-	DrawFormatStringToHandle(590 - width, y + (80-44), color, m_fontHandleNormal,
+	DrawFormatStringToHandle((W_WINDOW - 30) - width, y + (60-44), color, m_fontHandleNormal,
 		"%s", m_artist);
 	
 	/* 譜面作者 */
 	width = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "(譜面作成　%s)", m_fumenAuthor);
-	DrawFormatStringToHandle(590 - width, y + (80-22), color, m_fontHandleNormal,
+	DrawFormatStringToHandle((W_WINDOW - 30) - width, y + (60-22), color, m_fontHandleNormal,
 		"(譜面作成　%s)", m_fumenAuthor);
 }
 
-void CMusicInfo::drawRanking(CRanking &ranking, int y, int rankBegin, int rankLen){
-	ranking.draw(y, rankBegin, rankLen, m_fontHandleNormal);
+void CMusicInfo::drawRanking(int y, int rankBegin, int rankLen){
+	m_ranking.draw(y, rankBegin, rankLen, m_fontHandleNormal);
 }
 
 void CMusicInfo::createFont(){
@@ -1647,7 +1782,7 @@ void CMusicInfo::createFont(){
 
 /* ============================================================ */
 
-void main2(CTyping &typing){
+void main3(CTyping &typing){
 	while(1){
 		if(ProcessMessage() == -1){
 			return;
@@ -1692,20 +1827,257 @@ vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
 	return itr;
 }
 
+void main2(){
+	int fontHandleDefault = CreateFontToHandle(NULL, 16, 3);
+	
+	bitset<CHALLENGE_NUM> challenge;
+	
+	vector<CMusicInfo>::iterator infoArrayItr = g_infoArray.begin();
+	(*infoArrayItr).loadRanking();
+	int rankingPos = -RANKING_DRAW_LEN;
+	/* 負なら、1位のみ表示。-RANKING_DRAW_LENにしておくと、RANKING_DRAW_LEN位ずつ表示するときと都合が良い。 */
+	
+	CTyping typing;
+	
+	while(1){
+		if(ProcessMessage() == -1){
+			return;
+		}
+		
+		SetDrawScreen(DX_SCREEN_BACK);
+		ClearDrawScreen();
+		
+		if(rankingPos >= 0){
+#if 0
+			/* タイトルなど表示 */
+			(*prevInfo(infoArrayItr)).draw(0, GetColor(128, 128, 128));
+			          (*infoArrayItr).draw(60, GetColor(255, 255, 255));
+			(*nextInfo(infoArrayItr)).draw(360, GetColor(128, 128, 128));
+			
+			/* 水平線で区切る */
+			DrawLine(10,  60, W_WINDOW - 10,  60, GetColor(128, 128, 128));
+			DrawLine(40, 120, W_WINDOW - 40, 120, GetColor(64, 64, 64));
+			DrawLine(10, 360, W_WINDOW - 10, 360, GetColor(128, 128, 128));
+			DrawLine( 0, 420, W_WINDOW     , 420, GetColor(170, 170, 170));
+			
+			/* ランキング表示（rankingPosからRANKING_DRAW_LEN個） */
+			(*infoArrayItr).drawRanking(120, rankingPos, RANKING_DRAW_LEN);
+#endif
+			DrawBox(10, 10, W_WINDOW - 10, 350, GetColor(32, 32, 64), TRUE);
+			
+			/* 上下に水平線を書いておく */
+			DrawLine(10, 10, W_WINDOW - 10, 10, GetColor(128, 128, 128));
+			DrawLine(10, 350, W_WINDOW - 10, 350, GetColor(128, 128, 128));
+			
+			/* タイトルなど表示 */
+			(*infoArrayItr).draw(20, GetColor(255, 255, 255));
+			
+			/* 水平線で区切る */
+			DrawLine(40, 90, W_WINDOW - 40, 90, GetColor(64, 64, 64));
+			
+			/* ランキング表示（rankingPosからRANKING_DRAW_LEN個） */
+			(*infoArrayItr).drawRanking(90 + 10, rankingPos, RANKING_DRAW_LEN);
+		}else{
+			DrawBox(10, 120, W_WINDOW - 10, 240, GetColor(32, 32, 64), TRUE);
+			/* タイトルなど表示 */
+			(*prevInfo(prevInfo(infoArrayItr))).draw(0, GetColor(85, 85, 85));
+			          (*prevInfo(infoArrayItr)).draw(60, GetColor(128, 128, 128));
+			                    (*infoArrayItr).draw(120, GetColor(255, 255, 255));
+			          (*nextInfo(infoArrayItr)).draw(240, GetColor(128, 128, 128));
+			(*nextInfo(nextInfo(infoArrayItr))).draw(300, GetColor(85, 85, 85));
+			
+			/* 水平線で区切る */
+			DrawLine(10,  60, W_WINDOW - 10,  60, GetColor(85, 85, 85));
+			DrawLine(10, 120, W_WINDOW - 10, 120, GetColor(128, 128, 128));
+			DrawLine(40, 180, W_WINDOW - 40, 180, GetColor(64, 64, 64));
+			DrawLine(10, 240, W_WINDOW - 10, 240, GetColor(128, 128, 128));
+			DrawLine(10, 300, W_WINDOW - 10, 300, GetColor(85, 85, 85));
+			
+			/* ランキング表示（1位のみ） */
+			(*infoArrayItr).drawRanking(180 + (60-48)/2, 0, 1);
+		}
+		DrawBox(0, 360, W_WINDOW, H_WINDOW - 25, GetColor(32, 32, 32), TRUE);
+		DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
+		DrawLine(0, H_WINDOW - 25, W_WINDOW, H_WINDOW - 25, GetColor(170, 170, 170));
+		
+		DrawStringToHandle(10, 370, "↑↓: 曲選択, ←→: ランキング表示,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(400, 370, "Enter: 曲決定, Esc: 終了",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 85, "R: Reset to Default,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 65, "H: Hidden, S: Sudden, C: CircleStealth, L: LyricsStealth,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 45, "X: Speed x2,         Q: sin, W: cos, E: tan",
+			GetColor(255, 255, 255), fontHandleDefault);
+		int color;
+		if(challenge.test(CHALLENGE_STEALTH)){
+			DrawStringToHandle(10, H_WINDOW - 20, "[ CircleStealth ]", GetColor(255, 255, 0), fontHandleDefault);
+		}else{
+			if(challenge.test(CHALLENGE_HIDDEN)){
+				color = GetColor(255, 255, 0);
+			}else{
+				color = GetColor(64, 64, 64);
+			}
+			DrawStringToHandle(10, H_WINDOW - 20, "[ Hidden ]", color, fontHandleDefault);
+			
+			if(challenge.test(CHALLENGE_SUDDEN)){
+				color = GetColor(255, 255, 0);
+			}else{
+				color = GetColor(64, 64, 64);
+			}
+			DrawStringToHandle(100, H_WINDOW - 20, "[ Sudden ]", color, fontHandleDefault);
+		}
+		if(challenge.test(CHALLENGE_LYRICS_STEALTH)){
+			color = GetColor(255, 255, 0);
+		}else{
+			color = GetColor(64, 64, 64);
+		}
+		DrawStringToHandle(190, H_WINDOW - 20, "[ LyricsStealth ]", color, fontHandleDefault);
+		
+		if(challenge.test(CHALLENGE_SPEED_X2)){
+			color = GetColor(255, 255, 0);
+		}else{
+			color = GetColor(64, 64, 64);
+		}
+		DrawStringToHandle(350, H_WINDOW - 20, "[ Speed x2 ]", color, fontHandleDefault);
+		
+		if(challenge.test(CHALLENGE_SIN)){
+			color = GetColor(255, 255, 0);
+		}else{
+			color = GetColor(64, 64, 64);
+		}
+		DrawStringToHandle(490, H_WINDOW - 20, "[sin]", color, fontHandleDefault);
+		
+		if(challenge.test(CHALLENGE_COS)){
+			color = GetColor(255, 255, 0);
+		}else{
+			color = GetColor(64, 64, 64);
+		}
+		DrawStringToHandle(540, H_WINDOW - 20, "[cos]", color, fontHandleDefault);
+		
+		if(challenge.test(CHALLENGE_TAN)){
+			color = GetColor(255, 255, 0);
+		}else{
+			color = GetColor(64, 64, 64);
+		}
+		DrawStringToHandle(590, H_WINDOW - 20, "[tan]", color, fontHandleDefault);
+		
+		ScreenFlip();
+		
+		char ch = GetKeyboardInput();
+		switch(ch){
+		case CTRL_CODE_ESC:	/* 終了 */
+			goto L1;
+		case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
+			(*infoArrayItr).unloadRanking();
+			infoArrayItr = prevInfo(infoArrayItr);
+			(*infoArrayItr).loadRanking();
+			rankingPos = -RANKING_DRAW_LEN;
+			break;
+		case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
+			(*infoArrayItr).unloadRanking();
+			infoArrayItr = nextInfo(infoArrayItr);
+			(*infoArrayItr).loadRanking();
+			rankingPos = -RANKING_DRAW_LEN;
+			break;
+		case CTRL_CODE_LEFT:	/* 上位を表示 */
+			if(rankingPos < 0){
+				break;
+			}
+			rankingPos -= RANKING_DRAW_LEN;
+			break;
+		case CTRL_CODE_RIGHT:	/* 下位を表示 */
+			if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
+				break;
+			}
+			rankingPos += RANKING_DRAW_LEN;
+			break;
+		case CTRL_CODE_CR:	/* ゲーム開始 */
+			(*infoArrayItr).unloadRanking();
+			
+			(*infoArrayItr).load(typing);	/* ゲーム情報「に」譜面・ハイスコアのファイルをロード */
+			/* ↑これをtyping.nanka(infoArrayItr)みたいにしたいんだが、いろいろ面倒 */
+			typing.setChallenge(challenge);
+			main3(typing);
+			typing.unload();	/* 終了処理 */
+			
+			rankingPos = -RANKING_DRAW_LEN;
+			/* 戻ってきたときに、詳細ランキングから抜ける */
+			/* （なんとなく、1位にランクインしたのにほかのところが表示されてたら悲しい） */
+			
+			(*infoArrayItr).loadRanking();
+			break;
+		case 'h':
+		case 'H':
+			challenge.flip(CHALLENGE_HIDDEN);
+			if(challenge.test(CHALLENGE_HIDDEN)){
+				challenge.reset(CHALLENGE_STEALTH);
+			}
+			break;
+		case 's':
+		case 'S':
+			challenge.flip(CHALLENGE_SUDDEN);
+			if(challenge.test(CHALLENGE_SUDDEN)){
+				challenge.reset(CHALLENGE_STEALTH);
+			}
+			break;
+		case 'c':
+		case 'C':
+			challenge.flip(CHALLENGE_STEALTH);
+			if(challenge.test(CHALLENGE_STEALTH)){
+				challenge.reset(CHALLENGE_HIDDEN);
+				challenge.reset(CHALLENGE_SUDDEN);
+			}
+			break;
+		case 'l':
+		case 'L':
+			challenge.flip(CHALLENGE_LYRICS_STEALTH);
+			break;
+		case 'x':
+		case 'X':
+			challenge.flip(CHALLENGE_SPEED_X2);
+			break;
+		case 'q':
+		case 'Q':
+			challenge.flip(CHALLENGE_SIN);
+			break;
+		case 'w':
+		case 'W':
+			challenge.flip(CHALLENGE_COS);
+			break;
+		case 'e':
+		case 'E':
+			challenge.flip(CHALLENGE_TAN);
+			break;
+		case 'r':
+		case 'R':
+			challenge.reset();	/* 全チャレンジをなくす */
+			break;
+		default:
+			break;
+		}
+	}
+	
+L1:
+	DeleteFontToHandle(fontHandleDefault);
+	return;
+}
+
 void main1(){
 	{
 		g_infoArray.clear();
 		FILE *fp;
 		fp = fopen("UTyping_list.txt", "r");
 		if(fp == NULL){
-			throw __LINE__;
+			throw "UTyping_list.txt が開けません。";
 		}
 		char buf[256];
 		while(fgetline(buf, fp) != NULL){
 			FILE *fpInfo;
 			CMusicInfo info;
 			fpInfo = fopen(buf, "r");	/* 情報ファイルを開く */
-			if(fp == NULL){	/* 開けないファイルは無視 */
+			if(fpInfo == NULL){	/* 開けないファイルは無視 */
 				continue;
 			}
 			char dirName[256];	/* ディレクトリは情報ファイルを基準とする */
@@ -1725,103 +2097,17 @@ void main1(){
 			g_infoArray.push_back(info);
 		}
 		fclose(fp);
+		if(g_infoArray.empty()){
+			"曲が一曲も存在しません。";
+		}
 	}
-	if(g_infoArray.empty()){
-		throw __LINE__;
-	}
-	vector<CMusicInfo>::iterator infoArrayItr = g_infoArray.begin();
-	CRanking ranking;
-	(*infoArrayItr).loadRanking(ranking);
-	int rankingPos = -RANKING_DRAW_LEN;
-	/* 負なら、1位のみ表示。-RANKING_DRAW_LENにしておくと、RANKING_DRAW_LEN位ずつ表示するときと都合が良い。 */
 	
-	while(1){
-		if(ProcessMessage() == -1){
-			return;
-		}
-		
-		SetDrawScreen(DX_SCREEN_BACK);
-		ClearDrawScreen();
-		
-		if(rankingPos >= 0){
-			/* タイトルなど表示 */
-			(*prevInfo(infoArrayItr)).draw(0, GetColor(128, 128, 128));
-			          (*infoArrayItr).draw(80, GetColor(255, 255, 255));
-			(*nextInfo(infoArrayItr)).draw(400, GetColor(128, 128, 128));
-			
-			/* 水平線で区切る */
-			DrawLine(10, 80, 630, 80, GetColor(128, 128, 128));
-			DrawLine(40, 160, 600, 160, GetColor(64, 64, 64));
-			DrawLine(10, 400, 630, 400, GetColor(128, 128, 128));
-			
-			/* ランキング表示（rankingPosからRANKING_DRAW_LEN個） */
-			(*infoArrayItr).drawRanking(ranking, 160, rankingPos, RANKING_DRAW_LEN);
-		}else{
-			/* タイトルなど表示 */
-			(*prevInfo(prevInfo(infoArrayItr))).draw(0, GetColor(85, 85, 85));
-			          (*prevInfo(infoArrayItr)).draw(80, GetColor(128, 128, 128));
-			                    (*infoArrayItr).draw(160, GetColor(255, 255, 255));
-			          (*nextInfo(infoArrayItr)).draw(320, GetColor(128, 128, 128));
-			(*nextInfo(nextInfo(infoArrayItr))).draw(400, GetColor(85, 85, 85));
-			
-			/* 水平線で区切る */
-			DrawLine(10, 80, 630, 80, GetColor(85, 85, 85));
-			DrawLine(10, 160, 630, 160, GetColor(128, 128, 128));
-			DrawLine(40, 240, 600, 240, GetColor(64, 64, 64));
-			DrawLine(10, 320, 630, 320, GetColor(128, 128, 128));
-			DrawLine(10, 400, 630, 400, GetColor(85, 85, 85));
-			
-			/* ランキング表示（1位のみ） */
-			(*infoArrayItr).drawRanking(ranking, 240 + (80-48)/2, 0, 1);
-		}
-		
-		ScreenFlip();
-		
-		char ch = GetKeyboardInput();
-		switch(ch){
-		case CTRL_CODE_ESC:	/* 終了 */
-			goto L1;
-		case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
-			infoArrayItr = prevInfo(infoArrayItr);
-			(*infoArrayItr).loadRanking(ranking);
-			rankingPos = -RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
-			infoArrayItr = nextInfo(infoArrayItr);
-			(*infoArrayItr).loadRanking(ranking);
-			rankingPos = -RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_LEFT:	/* 上位を表示 */
-			if(rankingPos < 0){
-				break;
-			}
-			rankingPos -= RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_RIGHT:	/* 下位を表示 */
-			if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
-				break;
-			}
-			rankingPos += RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_CR:	/* ゲーム開始 */
-			ranking.close();
-			{
-				CTyping typing;
-				(*infoArrayItr).load(typing);	/* ゲーム情報「に」譜面・ハイスコアのファイルをロード */
-				main2(typing);
-			}
-			(*infoArrayItr).loadRanking(ranking);
-			break;
-		default:
-			break;
-		}
-	}
-L1:
-	return;
+	main2();
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow){
+//SetGraphMode(W_WINDOW, H_WINDOW, 32);
 	ChangeWindowMode(TRUE);
 #ifndef DEBUG_MODE
 	SetMainWindowText("UTyping (c)2007 tos");
@@ -1831,18 +2117,25 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	if(DxLib_Init() == -1){
 		return -1;
 	}
-	InitializeCriticalSection(&g_csKeyboardInput);
-	newThread(KeyboardInputThread, NULL);
 	try{
-		main1();
+		if(checkUTypingUserID()){
+			InitializeCriticalSection(&g_csKeyboardInput);
+			HANDLE hThreadKI;
+			hThreadKI = newThread(KeyboardInputThread, NULL);
+			main1();
+			deleteThread(hThreadKI);
+			DeleteCriticalSection(&g_csKeyboardInput);
+			/* ↑別スレッドで使ってる途中でいきなり削除していいようなものなのだろうか */
+		}else{
+			throw "UserIDが不正です。";
+		}
 	}catch(int n){
-		FILE *fp;
-		fp = fopen("エラーログ.txt","a");
-		fprintf(fp, "%d 行目でエラーが発生しました。\n", n);
-		fclose(fp);
+		char buf[256];
+		sprintf(buf, "%d 行目でエラーが発生しました。", n);
+		outputError(buf);
+	}catch(char *str){
+		outputError(str);
 	}
-	//DeleteCriticalSection(&g_csKeyboardInput);
-	/* 別スレッドで使ってる途中でいきなり削除していいようなものなのだろうか */
 	DxLib_End();
 	return 0;
 }
