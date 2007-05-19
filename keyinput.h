@@ -1,6 +1,9 @@
+#ifndef KEYINPUT_H
+#define KEYINPUT_H
 
-//#ifdef UTYPING_USE_MULTI_THREAD
-/* マルチスレッド用 */
+#include "dxlib.h"
+#include <deque>
+using namespace std;
 
 struct KeyboardInput{
 	char ch;
@@ -8,109 +11,86 @@ struct KeyboardInput{
 };
 
 deque<KeyboardInput> g_deqKeyboardInput;
-CRITICAL_SECTION g_csKeyboardInput;
+//CRITICAL_SECTION g_csKeyboardInput;
 
-/* キーを押した時刻を必要としない（返さない）バージョン */
-char MT_GetKeyboardInput(){
-	char ch;
-	EnterCriticalSection(&g_csKeyboardInput);
+long FAR PASCAL KeyboardInputProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam){
+	static char CtrlCode[][ 2 ] =
 	{
-		if(g_deqKeyboardInput.empty()){	/* キューが空 */
-			ch = 0;
-		}else{	/* キューが空でないのでそれを取得 */
-			KeyboardInput &ki = g_deqKeyboardInput.front();
-			ch = ki.ch;
-			//timeCount = ki.timeCount;
-			g_deqKeyboardInput.pop_front();	/* 読んだら削除 */
-		}
-	}
-	LeaveCriticalSection(&g_csKeyboardInput);
-	return ch;
-}
+		VK_DELETE	,	CTRL_CODE_DEL	,	// ＤＥＬキー
 
-/* キーを押した時刻を返すバージョン */
-char MT_GetKeyboardInput(LONGLONG &timeCount){
-	char ch;
-	EnterCriticalSection(&g_csKeyboardInput);
-	{
-		if(g_deqKeyboardInput.empty()){	/* キューが空 */
-			ch = 0;
-		}else{	/* キューが空でないのでそれを取得 */
-			KeyboardInput &ki = g_deqKeyboardInput.front();
-			ch = ki.ch;
-			timeCount = ki.timeCount;
-			g_deqKeyboardInput.pop_front();	/* 読んだら削除 */
-		}
-	}
-	LeaveCriticalSection(&g_csKeyboardInput);
-	return ch;
-}
+		VK_LEFT		,	CTRL_CODE_LEFT	,	// ←キー
+		VK_RIGHT	,	CTRL_CODE_RIGHT	,	// →キー
+		VK_UP		,	CTRL_CODE_UP	,	// ↑キー
+		VK_DOWN		,	CTRL_CODE_DOWN	,	// ↓キー
+		0			,	0
+	} ;
 
-DWORD WINAPI KeyboardInputThread(LPVOID lpParameter){
-#if 0
-	char keyState[256];	/* キーの状態 */
-	memset(keyState, 0, 256);	/* 最初は全部押されていないとみなす */
-#endif
-	LONGLONG lastCount = GetNowHiPerformanceCount();
-	
-	ClearInputCharBuf();	/* 最初にバッファを消しておく */
-	while(1){
-		LONGLONG count = GetNowHiPerformanceCount();
-		if(count - lastCount < 1000){	/* 1ミリ秒以上たっていないなら何もしない */
-			Sleep(0);
-			continue;
+	switch(message){
+	// 文字コードメッセージ
+	case WM_CHAR :
+		{
+			// 文字をバッファにコピー
+			//ST_StokInputChar( ( char )wParam ) ;
+			KeyboardInput ki;
+			ki.ch = (char)wParam;
+			ki.timeCount = GetNowHiPerformanceCount();
+//printfDx("%c(%d), %f\n", ki.ch, ki.ch, (double)ki.timeCount);
+			g_deqKeyboardInput.push_back(ki);
 		}
-		lastCount = count;
-		
-		KeyboardInput ki;
-#if 0
-		while(1){
-			char buf[256];
-			if(GetHitKeyStateAll(buf) == -1){	/* エラーが起きたら終了 */
-				goto L1;
-			}
-			if(memcmp(keyState, buf, 256) != 0){	/* キーの押下状態が前回と異なる */
-				ki.timeCount = GetNowHiPerformanceCount();	/* 時刻保存 */
-				memcpy(keyState, buf, 256);
-				break;
-			}
-			Sleep(0);
-		}
-#endif
-//ProcessStreamSoundMemAll();
-//g_check.begin();
-		ki.timeCount = GetNowHiPerformanceCount();
-		/* ProcessMessageの前に時刻を保存し、ProcessMessageが遅くても大丈夫にする。 */
-		if(ProcessMessage() == -1){
-			break;
-		}
-//g_check.end(100);
-		while(1){
-			ki.ch = GetInputChar(TRUE);	/* キー入力（TRUE:一度読み込んだら消す） */
-			if(ki.ch == 0){	/* 「なし」と帰ってきたら終わり */
-				break;
-			}
-			EnterCriticalSection(&g_csKeyboardInput);
+		break ;
+	case WM_KEYDOWN:
+		{
+			int VKey = ( int )wParam ;
+			char *CCode = ( char * )CtrlCode ;
+
+			// コントロール文字コードに対応するキーが
+			// 押されていたらバッファに格納する
+			while( *CCode )
 			{
-				g_deqKeyboardInput.push_back(ki);	/* キューに追加 */
+				if( *CCode == VKey )
+				{
+					// バッファに文字コードを代入
+					//ST_StokInputChar( *( CCode + 1 ) ) ;
+					KeyboardInput ki;
+					ki.ch = *(CCode + 1);
+					ki.timeCount = GetNowHiPerformanceCount();
+//printfDx("%c(%d), %f\n", ki.ch, ki.ch, (double)ki.timeCount);
+					g_deqKeyboardInput.push_back(ki);
+					break ;
+				}
+				CCode += 2 ;
 			}
-			LeaveCriticalSection(&g_csKeyboardInput);
 		}
+		break ;
 	}
-L1:
 	return 0;
 }
 
-//#else
-/* シングルスレッド用 */
-
-char ST_GetKeyboardInput(){
-	return GetInputChar(TRUE);
+/* キーを押した時刻を必要としない（返さない）バージョン */
+char GetKeyboardInput(){
+	char ch;
+	if(g_deqKeyboardInput.empty()){	/* キューが空 */
+		ch = 0;
+	}else{	/* キューが空でないのでそれを取得 */
+		KeyboardInput &ki = g_deqKeyboardInput.front();
+		ch = ki.ch;
+		//timeCount = ki.timeCount;
+		g_deqKeyboardInput.pop_front();	/* 読んだら削除 */
+	}
+	return ch;
 }
 
-char ST_GetKeyboardInput(LONGLONG &timeCount){
-	timeCount = GetNowHiPerformanceCount();
-	return GetInputChar(TRUE);
+char GetKeyboardInput(LONGLONG &timeCount){
+	char ch;
+	if(g_deqKeyboardInput.empty()){	/* キューが空 */
+		ch = 0;
+	}else{	/* キューが空でないのでそれを取得 */
+		KeyboardInput &ki = g_deqKeyboardInput.front();
+		ch = ki.ch;
+		timeCount = ki.timeCount;
+		g_deqKeyboardInput.pop_front();	/* 読んだら削除 */
+	}
+	return ch;
 }
 
-//#endif
+#endif
