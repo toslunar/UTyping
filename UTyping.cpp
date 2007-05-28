@@ -7,6 +7,8 @@
 #include <deque>
 #include <bitset>
 
+using namespace std;
+
 #include "utuid.h"
 
 /*
@@ -21,8 +23,6 @@ CCheck g_class
 #define chkB txxx=GetNowHiPerformanceCount();
 #define chkE tyyy=GetNowHiPerformanceCount(); {int t=(int)(tyyy-txxx); if(t>=10)printfDx((t>=16384)?"--------%5d--------\n":"%5d\n", t);}
 */
-
-using namespace std;
 
 #define COLOR_EXCELLENT GetColor(255, 255, 0)
 #define COLOR_GOOD GetColor(0, 255, 0)
@@ -122,6 +122,12 @@ using namespace std;
 #define INFTY 1000000000
 
 enum{
+EDIT_BUFFER_NONE,
+EDIT_BUFFER_OK,
+EDIT_BUFFER_CANCEL,
+};
+
+enum{
 PHASE_READY,	/* 開始前 */
 PHASE_MAIN,	/* メイン */
 PHASE_RESULT,	/* スコア表示 */
@@ -145,6 +151,11 @@ CHALLENGE_TAN,
 
 CHALLENGE_NUM
 };
+
+/* ============================================================ */
+/* グローバル変数とか */
+
+int g_fontHandleDebug;
 
 /* ============================================================ */
 
@@ -322,6 +333,10 @@ public:
 public:
 	//bool f_useMultiThread;
 	int loadSoundType;
+	int volume;
+	
+	bool f_showFPS;
+	bool f_waitVSync;
 	
 	bool f_debugMode;
 };
@@ -335,6 +350,11 @@ UTypingConfig::UTypingConfig(){
 void UTypingConfig::init(){
 	//f_useMultiThread = true;
 	loadSoundType = DX_SOUNDDATATYPE_MEMPRESS;
+	volume = -1;
+	
+	f_showFPS = false;
+	f_waitVSync = true;
+	
 	f_debugMode = false;
 }
 
@@ -376,6 +396,34 @@ void UTypingConfig::read(){
 			}else{
 				throw "[config] LoadSoundType は 0, 1 または 2 で指定しなければならない。（デフォルト: 1 ）";
 			}
+		}else if(!strcmp(ptr1, "Volume")){
+			if(!strcmp(ptr2, "default")){
+				f_debugMode = -1;
+			}else{
+				int n;
+				int tmp;
+				tmp = sscanf(ptr2, "%d", &n);
+				if(tmp < 1 || n < 0 || n > 255){
+					throw "[config] Volume は default または 0 以上 255 以下 で指定しなければならない。（デフォルト: 255 ）";
+				}
+				g_config.volume = n;
+			}
+		}else if(!strcmp(ptr1, "ShowFPS")){
+			if(!strcmp(ptr2, "true")){
+				f_showFPS = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_showFPS = false;
+			}else{
+				throw "[config] ShowFPS は true または false で指定しなければならない。（デフォルト: false ）";
+			}
+		}else if(!strcmp(ptr1, "WaitVSync")){
+			if(!strcmp(ptr2, "true")){
+				f_waitVSync = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_waitVSync = false;
+			}else{
+				throw "[config] WaitVSync は true または false で指定しなければならない。（デフォルト: false ）";
+			}
 		}else if(!strcmp(ptr1, "DebugMode")){
 			if(!strcmp(ptr2, "true")){
 				f_debugMode = true;
@@ -386,10 +434,37 @@ void UTypingConfig::read(){
 			}
 		}else{
 			//throw "[config] 設定できる値は UseMultiThread, LoadSoundType, DebugMode である。";
-			throw "[config] 設定できる値は LoadSoundType, DebugMode である。";
+			throw "[config] 設定できる値は LoadSoundType, Volume, ShowFPS, WaitVSync, DebugMode である。";
 		}
 	}
 	fclose(fp);
+}
+
+/* ============================================================ */
+
+int myScreenFlip(){
+	static int count = 0;
+	static double fps = -1.0;
+	static LONGLONG timeCountBegin;
+	if(g_config.f_showFPS){
+		if(count == 0){
+			timeCountBegin = GetNowHiPerformanceCount();
+		}else if(count == 30){
+			LONGLONG timeCountEnd = GetNowHiPerformanceCount();
+			fps = 30000000 / (double)(timeCountEnd - timeCountBegin);
+			/* x[us] のとき 30/(x/1000000) = 30000000/x */
+			count = 0;
+			timeCountBegin = timeCountEnd;
+		}
+		count++;
+		if(fps >= 0.0){
+			char buf[256];
+			sprintf(buf, "[%4.1ffps]", fps);
+			int width = GetDrawStringWidthToHandle(buf, strlen(buf), g_fontHandleDebug);
+			DrawStringToHandle(W_WINDOW - width, 0, buf, GetColor(255, 255, 255), g_fontHandleDebug);
+		}
+	}
+	return ScreenFlip();
 }
 
 /* ============================================================ */
@@ -413,6 +488,37 @@ bool checkUTypingUserID(){
 	}
 	fclose(fp);
 	return true;
+}
+
+/* ============================================================ */
+
+/* キー入力でバッファを操作する */
+
+#define editBuffer(ch, buf, len) editBuffer_1(ch, buf, len, sizeof(buf));
+
+int editBuffer_1(char ch, char *buf, int &len, int bufSize){
+	if(ch < CTRL_CODE_CMP){	/* 文字コードでないとき */
+		switch(ch){
+		case CTRL_CODE_CR:	/* 改行なら確定 */
+			return EDIT_BUFFER_OK;
+		case CTRL_CODE_BS:	/* BackSpaceや左キーやDeleteなら */
+		case CTRL_CODE_LEFT:
+		case CTRL_CODE_DEL:
+			if(len > 0){
+				len--;	/* 一文字削除 */
+			}
+			buf[len] = '\0';
+			break;
+		case CTRL_CODE_ESC:
+			return EDIT_BUFFER_CANCEL;
+		}
+		return 0;
+	}
+	if(len < bufSize - 1){
+		buf[len++] = ch;
+		buf[len] = '\0';
+	}
+	return 0;
 }
 
 /* ============================================================ */
@@ -1125,8 +1231,8 @@ public:
 	void mainLoop();
 	void replayLoop();
 	
-	void replaySave();
-	void replayLoad();
+	bool replaySave();
+	bool replayLoad();
 private:
 	CTrieNode m_trie;
 	
@@ -1616,6 +1722,13 @@ bool CTyping::idle(LONGLONG timeCount){	/* 問題なければ true を返す */
 		if(m_soundHandleMusic == -1){	/* まだ音楽を読み込んでなかったら読み込み */
 			SetCreateSoundDataType(g_config.loadSoundType);	/* configをみて読み込み方を決定 */
 			m_soundHandleMusic = LoadSoundMem(m_musicFileName);
+			if(m_soundHandleMusic == -1){
+				throw "[譜面] 曲ファイルが再生できません。";
+			}
+			if(g_config.volume >= 0){
+				/* 音量が指定されていれば、音量設定 */
+				ChangeVolumeSoundMem(g_config.volume, m_soundHandleMusic);
+			}
 			
 			if(m_challenge.key() != 0){	/* キーシフトが行われている */
 				int oldFrequency = GetFrequencySoundMem(m_soundHandleMusic);	/* 元の再生周波数を読み込み */
@@ -2107,7 +2220,7 @@ void CTyping::draw(){
 #endif
 	
 	/* 小節線、拍線を表示 */
-	while(1){
+	while((*m_beatLineDrawLeft).time != INFTY){
 		double timeDiff = time - (*m_beatLineDrawLeft).time;
 		int posX = getDrawPosX(timeDiff);
 		if(posX >= 0){
@@ -2117,7 +2230,7 @@ void CTyping::draw(){
 		/* すでに画面から出てしまったので、描画対象から削除 */
 		m_beatLineDrawLeft++;
 	}
-	while(1){
+	while((*m_beatLineDrawRight).time != INFTY){
 		double timeDiff = time - (*m_beatLineDrawRight).time;
 		int posX = getDrawPosX(timeDiff);
 		if(posX >= W_WINDOW){
@@ -2150,8 +2263,9 @@ void CTyping::draw(){
 		}
 		SetDrawArea(xMin, 0, xMax, H_WINDOW);	/* 描画範囲を制限 */
 		
-		for(;; m_lyricsDrawLeft++){
+		while((*m_lyricsDrawLeft).timeJust != INFTY){
 			if(!(*m_lyricsDrawLeft).isBlockStart){	/* 音節の最初でないなら進めてよい */
+				m_lyricsDrawLeft++;
 				continue;
 			}
 			double timeDiff = time - (*m_lyricsDrawLeft).timeJust;
@@ -2161,10 +2275,12 @@ void CTyping::draw(){
 				break;
 			}
 			/* すでに画面から出てしまったので、描画対象から削除 */
+			m_lyricsDrawLeft++;
 		}
 		
-		for(;; m_lyricsDrawRight++){
+		while((*m_lyricsDrawRight).timeJust != INFTY){
 			if(!(*m_lyricsDrawRight).isBlockStart){	/* 音節の最初でないなら進めてよい */
+				m_lyricsDrawRight++;
 				continue;
 			}
 			double timeDiff = time - (*m_lyricsDrawRight).timeJust;
@@ -2174,6 +2290,7 @@ void CTyping::draw(){
 				break;
 			}
 			/* 新しく画面に入ってきたので、描画対象に追加 */
+			m_lyricsDrawRight++;
 		}
 		
 		for(vector<Lyrics>::iterator i = m_lyricsDrawRight; i != m_lyricsDrawLeft;){
@@ -2398,7 +2515,7 @@ void CTyping::mainLoop(){
 		draw();
 //check.end();
 //check3.end();
-		ScreenFlip();
+		myScreenFlip();
 		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
 //check2.end();
 //check2.begin();
@@ -2440,7 +2557,7 @@ void CTyping::replayLoop(){
 	ClearDrawScreen();
 	while(1){
 		draw();
-		ScreenFlip();
+		myScreenFlip();
 		
 		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
 		
@@ -2482,65 +2599,154 @@ L1:
 
 /* ------------------------------------------------------------ */
 
-void CTyping::replaySave(){
-	FILE *fp;
-	fp = fopen("replay.dat", "wb");
-	for(vector<ReplayData>::iterator itr = m_replayData.begin(); itr != m_replayData.end(); itr++){
-		fwrite(&(*itr).ch, sizeof(char), 1, fp);
-		fwrite(&(*itr).time, sizeof(double), 1, fp);
-	}
-	fclose(fp);
+bool CTyping::replaySave(){
+	char buf[256];
+	strcpy(buf, "");
+	int len = 0;
 	while(1){
 		if(ProcessMessage() == -1){
-			break;
+			return false;
 		}
 		ClearDrawScreen();
-		DrawStringToHandle(10, 10, "replay.datに保存しました", GetColor(255, 255, 255), m_fontHandleBig);
-		ScreenFlip();
+		
+		DrawStringToHandle(10, 10, "save replay as", GetColor(255, 255, 255), m_fontHandleBig);
+		if(len != 0){
+			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
+		}else{
+			DrawStringToHandle(10, 50, "replay.dat", GetColor(128, 128, 128), m_fontHandleBig);
+		}
+		
+		myScreenFlip();
+		while(1){
+			char ch = GetKeyboardInput();
+			if(ch == 0){	/* キー入力処理終了 */
+				break;
+			}
+			int ret = editBuffer(ch, buf, len);	/* バッファを操作 */
+			switch(ret){
+			case EDIT_BUFFER_OK:
+				goto L1;
+			case EDIT_BUFFER_CANCEL:
+				return false;
+			}
+		}
+	}
+L1:
+	if(len == 0){
+		strcpy(buf, "replay.dat");
+	}
+	bool isSaved = false;
+	FILE *fp;
+	fp = fopen(buf, "wb");
+	if(fp != NULL){
+		for(vector<ReplayData>::iterator itr = m_replayData.begin(); itr != m_replayData.end(); itr++){
+			fwrite(&(*itr).ch, sizeof(char), 1, fp);
+			fwrite(&(*itr).time, sizeof(double), 1, fp);
+		}
+		fclose(fp);
+		isSaved = true;
+	}
+	while(1){
+		if(ProcessMessage() == -1){
+			return false;
+		}
+		ClearDrawScreen();
+		if(isSaved){
+			DrawStringToHandle(10, 10, "saved as", GetColor(255, 255, 255), m_fontHandleBig);
+			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
+		}else{
+			DrawStringToHandle(10, 10, "error", GetColor(255, 255, 255), m_fontHandleBig);
+		}
+		myScreenFlip();
 		while(1){
 			char ch = GetKeyboardInput();
 			if(ch == 0){
 				break;
 			}else{	/* 何か押したら戻る */
-				return;
+				return isSaved;
 			}
 		}
 	}
 }
 
-void CTyping::replayLoad(){
-	FILE *fp;
-	fp = fopen("replay.dat", "rb");
-	m_replayData.clear();	/* 読み込む前に現在入っているのを消去 */
-	while(1){
-		ReplayData rd;
-		if(fread(&rd.ch, sizeof(char), 1, fp) < 1){
-			break;
-		}
-		if(fread(&rd.time, sizeof(double), 1, fp) < 1){
-			break;
-		}
-		m_replayData.push_back(rd);
-	}
-	fclose(fp);
-#if 0
+bool CTyping::replayLoad(){
+	char buf[256];
+	strcpy(buf, "");
+	int len = 0;
 	while(1){
 		if(ProcessMessage() == -1){
-			break;
+			return false;
 		}
 		ClearDrawScreen();
-		DrawStringToHandle(10, 10, "replay.datから読み込みました", GetColor(255, 255, 255), m_fontHandleBig);
-		ScreenFlip();
+		
+		DrawStringToHandle(10, 10, "find replay file", GetColor(255, 255, 255), m_fontHandleBig);
+		if(len != 0){
+			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
+		}else{
+			DrawStringToHandle(10, 50, "replay.dat", GetColor(128, 128, 128), m_fontHandleBig);
+		}
+		
+		myScreenFlip();
+		while(1){
+			char ch = GetKeyboardInput();
+			if(ch == 0){	/* キー入力処理終了 */
+				break;
+			}
+			int ret = editBuffer(ch, buf, len);	/* バッファを操作 */
+			switch(ret){
+			case EDIT_BUFFER_OK:
+				goto L1;
+			case EDIT_BUFFER_CANCEL:
+				return false;
+			}
+		}
+	}
+L1:
+	if(len == 0){
+		strcpy(buf, "replay.dat");
+	}
+	bool isLoaded = false;
+	FILE *fp;
+	fp = fopen(buf, "rb");
+	if(fp != NULL){
+		m_replayData.clear();	/* 読み込む前に現在入っているのを消去 */
+		while(1){
+			ReplayData rd;
+			if(fread(&rd.ch, sizeof(char), 1, fp) < 1){
+				break;
+			}
+			if(fread(&rd.time, sizeof(double), 1, fp) < 1){
+				break;
+			}
+			m_replayData.push_back(rd);
+		}
+		fclose(fp);
+		isLoaded = true;
+	}
+	while(1){
+		if(isLoaded){	/* ロードされたらすぐ戻ることにしてみる */
+			return isLoaded;
+		}
+		if(ProcessMessage() == -1){
+			return false;
+		}
+		ClearDrawScreen();
+		if(isLoaded){
+			DrawStringToHandle(10, 10, "loaded", GetColor(255, 255, 255), m_fontHandleBig);
+			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
+		}else{
+			DrawStringToHandle(10, 10, "error", GetColor(255, 255, 255), m_fontHandleBig);
+		}
+		myScreenFlip();
 		while(1){
 			char ch = GetKeyboardInput();
 			if(ch == 0){
 				break;
 			}else{	/* 何か押したら戻る */
-				return;
+				return isLoaded;
 			}
 		}
 	}
-#endif
 }
 
 /* ============================================================ */
@@ -3005,7 +3211,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 		
 		ClearDrawScreen();
 		drawMain(infoArrayItr, rankingPos, challenge, fontHandleDefault);
-		ScreenFlip();
+		myScreenFlip();
 		
 		char ch = GetKeyboardInput();
 		switch(ch){
@@ -3045,7 +3251,9 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 			typing.replaySave();
 			break;
 		case '?':	/* 保存されたリプレイを再生 */
-			typing.replayLoad();
+			if(!typing.replayLoad()){
+				break;	/* リプレイの読み込みに失敗した場合は戻る */
+			}
 			typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
 			(*infoArrayItr).load(typing);
 			typing.replayLoop();
@@ -3098,68 +3306,81 @@ void drawTitle(int fontHandleTitle, int fontHandleInfo, char *strInfo){
 	}
 }
 
+int readList(){
+	int count = 0;
+	g_infoArray.clear();	/* 読み込む前に消去 */
+	FILE *fpList;
+	fpList = fopen("UTyping_list.txt", "r");	/* リストを開く */
+	if(fpList == NULL){
+		throw "UTyping_list.txt が開けません。";
+	}
+	char buf[256];
+	while(fgetline(buf, fpList) != NULL){
+		FILE *fpInfo;
+		CMusicInfo info;
+		fpInfo = fopen(buf, "r");	/* 情報ファイルを開く */
+		if(fpInfo == NULL){	/* 開けないファイルは無視 */
+			continue;
+		}
+		char dirName[256];	/* ディレクトリは情報ファイルを基準とする */
+		getDirFromPath(dirName, buf);
+		char buf0[256], buf1[256], buf2[256], *chk;
+		fgetline(info.m_title, fpInfo);	/* 1行目にタイトル */
+		fgetline(info.m_artist, fpInfo);	/* 2行目に原作者 */
+		fgetline(info.m_fumenAuthor, fpInfo);	/* 3行目に譜面作者 */
+		fgetline(buf0, fpInfo);
+		fgetline(buf1, fpInfo);
+		chk = fgetline(buf2, fpInfo);
+		if(chk == NULL){	/* 全行読み込めなかった */
+			continue;
+		}
+		for(int i = 0; i < COMMENT_N_LINES; i++){	/* 残りの行はコメント */
+			chk = fgetline(info.m_comment[i], fpInfo);
+			if(chk == NULL){
+				strcpy(info.m_comment[i],"");
+			}
+		}
+		fclose(fpInfo);	/* 情報ファイルを閉じる */
+		int n = sscanf(buf0, "%d", &info.m_level);	/* 4行目に難易度 */
+		if(n < 1){
+			continue;
+		}
+		sprintf(info.m_fumenFileName, "%s%s", dirName, buf1);	/* 5行目に譜面ファイル名 */
+		sprintf(info.m_rankingFileName, "%s%s", dirName, buf2);	/* 6行目にハイスコアファイル名 */
+		count++;
+		info.m_num = count;	/* 通し番号をつける */
+		g_infoArray.push_back(info);
+	}
+	fclose(fpList);	/* リストを閉じる */
+	return count;
+}
+
 void main1(){
 	bool isWindowMode = true;
 	while(1){
+		SetDrawScreen(DX_SCREEN_BACK);
+		/* ダブルバッファを用いる */
+		
+		g_fontHandleDebug = CreateFontToHandle(NULL, 10, 3, DX_FONTTYPE_EDGE);
+		
+		g_config.read();	/* configを読み込む */
+		if(!g_config.f_debugMode){
+			SetMainWindowText("UTyping (c)2007 tos");
+		}else{	/* デバッグモードであることを上に出す */
+			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
+		}
 		{
-			SetDrawScreen(DX_SCREEN_BACK);
-			/* ダブルバッファを用いる */
-			
 			int fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 48, 3, DX_FONTTYPE_ANTIALIASING_EDGE);
 			int fontHandleInfo = CreateFontToHandle("ＭＳ 明朝", 24, 3, DX_FONTTYPE_ANTIALIASING);
 			ClearDrawScreen();
 			drawTitle(fontHandleTitle, fontHandleInfo, "Now loading...");
-			ScreenFlip();
+			myScreenFlip();
 			
 			bool isCorrectID = checkUTypingUserID();
 			
-			int count = 0;
+			int count = readList();
 			
-			g_infoArray.clear();
-			FILE *fpList;
-			fpList = fopen("UTyping_list.txt", "r");	/* リストを開く */
-			if(fpList == NULL){
-				throw "UTyping_list.txt が開けません。";
-			}
-			char buf[256];
-			while(fgetline(buf, fpList) != NULL){
-				FILE *fpInfo;
-				CMusicInfo info;
-				fpInfo = fopen(buf, "r");	/* 情報ファイルを開く */
-				if(fpInfo == NULL){	/* 開けないファイルは無視 */
-					continue;
-				}
-				char dirName[256];	/* ディレクトリは情報ファイルを基準とする */
-				getDirFromPath(dirName, buf);
-				char buf0[256], buf1[256], buf2[256], *chk;
-				fgetline(info.m_title, fpInfo);	/* 1行目にタイトル */
-				fgetline(info.m_artist, fpInfo);	/* 2行目に原作者 */
-				fgetline(info.m_fumenAuthor, fpInfo);	/* 3行目に譜面作者 */
-				fgetline(buf0, fpInfo);
-				fgetline(buf1, fpInfo);
-				chk = fgetline(buf2, fpInfo);
-				if(chk == NULL){	/* 全行読み込めなかった */
-					continue;
-				}
-				for(int i = 0; i < COMMENT_N_LINES; i++){	/* 残りの行はコメント */
-					chk = fgetline(info.m_comment[i], fpInfo);
-					if(chk == NULL){
-						strcpy(info.m_comment[i],"");
-					}
-				}
-				fclose(fpInfo);	/* 情報ファイルを閉じる */
-				int n = sscanf(buf0, "%d", &info.m_level);	/* 4行目に難易度 */
-				if(n < 1){
-					continue;
-				}
-				sprintf(info.m_fumenFileName, "%s%s", dirName, buf1);	/* 5行目に譜面ファイル名 */
-				sprintf(info.m_rankingFileName, "%s%s", dirName, buf2);	/* 6行目にハイスコアファイル名 */
-				count++;
-				info.m_num = count;	/* 通し番号をつける */
-				g_infoArray.push_back(info);
-			}
-			fclose(fpList);	/* リストを閉じる */
-			if(g_infoArray.empty()){
+			if(count == 0){
 				throw "曲が一曲も存在しません。";
 			}
 			
@@ -3175,7 +3396,7 @@ void main1(){
 				SetDrawScreen(DX_SCREEN_BACK);
 				ClearDrawScreen();
 				drawTitle(fontHandleTitle, fontHandleInfo, isCorrectID ? "Press Enter key." : "Wrong UTyping user ID...");
-				ScreenFlip();
+				myScreenFlip();
 				char ch = GetKeyboardInput();
 				if(ch == 0){
 					continue;
@@ -3201,22 +3422,25 @@ void main1(){
 			DeleteFontToHandle(fontHandleInfo);
 			
 		}
-		ChangeWindowMode(isWindowMode);
+		if(ChangeWindowMode(isWindowMode) != DX_CHANGESCREEN_OK){
+			/* WindowModeの切り替えに失敗した */
+			throw "Window ←→ FullScreen の切り替えに失敗しました。";
+		}
 	}
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow){
+	
+	ChangeWindowMode(TRUE);
+	SetMainWindowText("UTyping");
 	try{
 //SetGraphMode(W_WINDOW, H_WINDOW, 32);
-		ChangeWindowMode(TRUE);
-		g_config.read();
-		if(!g_config.f_debugMode){
-			SetMainWindowText("UTyping (c)2007 tos");
-		}else{	/* デバッグモードであることを上に出す */
-			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
+		if(SetWaitVSyncFlag(g_config.f_waitVSync) == -1){
+			throw "WaitVSyncの設定に失敗しました。";
 		}
-
+		/* VSyncを待つかを設定 */
+		
 		if(DxLib_Init() == -1){
 			return -1;
 		}
@@ -3234,7 +3458,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		}else{
 		*/
 			main1();
-			DxLib_End();
 		//}
 	}catch(int n){
 		char buf[256];
@@ -3243,5 +3466,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	}catch(char *str){
 		outputError(str);
 	}
+	DxLib_End();
 	return 0;
 }
