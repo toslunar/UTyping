@@ -335,6 +335,7 @@ public:
 	int loadSoundType;
 	int volume;
 	
+	bool f_fullScreen;
 	bool f_showFPS;
 	bool f_waitVSync;
 	
@@ -352,6 +353,8 @@ void UTypingConfig::init(){
 	loadSoundType = DX_SOUNDDATATYPE_MEMPRESS;
 	volume = -1;
 	
+	
+	f_fullScreen = false;
 	f_showFPS = false;
 	f_waitVSync = true;
 	
@@ -408,6 +411,14 @@ void UTypingConfig::read(){
 				}
 				g_config.volume = n;
 			}
+		}else if(!strcmp(ptr1, "FullScreen")){
+			if(!strcmp(ptr2, "true")){
+				f_fullScreen = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_fullScreen = false;
+			}else{
+				throw "[config] FullScreen は true または false で指定しなければならない。（デフォルト: false ）";
+			}
 		}else if(!strcmp(ptr1, "ShowFPS")){
 			if(!strcmp(ptr2, "true")){
 				f_showFPS = true;
@@ -422,7 +433,7 @@ void UTypingConfig::read(){
 			}else if(!strcmp(ptr2, "false")){
 				f_waitVSync = false;
 			}else{
-				throw "[config] WaitVSync は true または false で指定しなければならない。（デフォルト: false ）";
+				throw "[config] WaitVSync は true または false で指定しなければならない。（デフォルト: true ）";
 			}
 		}else if(!strcmp(ptr1, "DebugMode")){
 			if(!strcmp(ptr2, "true")){
@@ -434,7 +445,8 @@ void UTypingConfig::read(){
 			}
 		}else{
 			//throw "[config] 設定できる値は UseMultiThread, LoadSoundType, DebugMode である。";
-			throw "[config] 設定できる値は LoadSoundType, Volume, ShowFPS, WaitVSync, DebugMode である。";
+			//throw "[config] 設定できる値は LoadSoundType, Volume, FullScreen, ShowFPS, WaitVSync, DebugMode である。";
+			throw "[config] 設定できない項目を設定しようとした。";
 		}
 	}
 	fclose(fp);
@@ -2338,7 +2350,11 @@ void CTyping::draw(){
 			/* 円の下の歌詞 */
 			if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){	/* LyricsStealthなら表示しない */
 				int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleNormal);
-				DrawStringToHandle(posX - strWidth / 2, Y_LYRICS + posY, buf,
+				int posXLeft = posX - strWidth / 2;	/* 中心を円の中心に */
+				if(posXLeft < posX - R_CIRCLE){	/* 円の左端より出てるなら */
+					posXLeft = posX - R_CIRCLE;	/* 円の左端にあわせる */
+				}
+				DrawStringToHandle(posXLeft, Y_LYRICS + posY, buf,
 					GetColor(255, 255, 255), m_fontHandleNormal);	/* 流れる円に書かれる文字 */
 			}
 		}
@@ -3355,20 +3371,20 @@ int readList(){
 	return count;
 }
 
-void main1(){
-	bool isWindowMode = true;
+void main1(bool &isWindowMode){
 	while(1){
-		SetDrawScreen(DX_SCREEN_BACK);
-		/* ダブルバッファを用いる */
-		
-		g_fontHandleDebug = CreateFontToHandle(NULL, 10, 3, DX_FONTTYPE_EDGE);
-		
 		g_config.read();	/* configを読み込む */
 		if(!g_config.f_debugMode){
 			SetMainWindowText("UTyping (c)2007 tos");
 		}else{	/* デバッグモードであることを上に出す */
 			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
 		}
+		
+		SetDrawScreen(DX_SCREEN_BACK);
+		/* ダブルバッファを用いる */
+		
+		g_fontHandleDebug = CreateFontToHandle(NULL, 10, 3, DX_FONTTYPE_EDGE);
+		
 		{
 			int fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 48, 3, DX_FONTTYPE_ANTIALIASING_EDGE);
 			int fontHandleInfo = CreateFontToHandle("ＭＳ 明朝", 24, 3, DX_FONTTYPE_ANTIALIASING);
@@ -3432,19 +3448,23 @@ void main1(){
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow){
 	
-	ChangeWindowMode(TRUE);
 	SetMainWindowText("UTyping");
 	try{
 //SetGraphMode(W_WINDOW, H_WINDOW, 32);
 		if(SetWaitVSyncFlag(g_config.f_waitVSync) == -1){
 			throw "WaitVSyncの設定に失敗しました。";
 		}
-		/* VSyncを待つかを設定 */
+		g_config.read();	/* configを読み込む */
+		bool isWindowMode = !g_config.f_fullScreen;
+		ChangeWindowMode(isWindowMode);
 		
 		if(DxLib_Init() == -1){
 			return -1;
 		}
+		
 		SetHookWinProc(KeyboardInputProc);
+		/* VSyncを待つかを設定 */
+		
 		/*
 		if(g_config.f_useMultiThread){
 			InitializeCriticalSection(&g_csKeyboardInput);
@@ -3456,9 +3476,10 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 			deleteThread(hThreadKI);
 			DeleteCriticalSection(&g_csKeyboardInput);
 		}else{
-		*/
 			main1();
-		//}
+		}
+		*/
+		main1(isWindowMode);
 	}catch(int n){
 		char buf[256];
 		sprintf(buf, "%d 行目でエラーが発生しました。", n);
