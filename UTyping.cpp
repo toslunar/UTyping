@@ -95,14 +95,6 @@ CCheck g_class
 #define Y_GAUGE 10
 #define H_GAUGE 40
 
-#if 0
-#define X0_GAUGE 320
-#define X1_GAUGE 620
-#define W_GAUGE (X1_GAUGE - X0_GAUGE)
-#define Y0_GAUGE 25
-#define Y1_GAUGE 35
-#endif
-
 #define X_HIDDEN (X_CIRCLE + R_CIRCLE + 60)
 /* Hiddenで見える左の限界 */
 #define X_SUDDEN (X_HIDDEN + R_CIRCLE)
@@ -323,6 +315,10 @@ void deleteThread(HANDLE handle){
 #endif
 /* ============================================================ */
 
+#include "utcheck.h"
+
+/* ============================================================ */
+
 /* Config */
 
 class UTypingConfig{
@@ -340,6 +336,8 @@ public:
 	bool f_waitVSync;
 	
 	bool f_debugMode;
+	
+	bool f_showProcessTime;
 };
 
 UTypingConfig g_config;
@@ -359,6 +357,8 @@ void UTypingConfig::init(){
 	f_waitVSync = true;
 	
 	f_debugMode = false;
+	
+	f_showProcessTime = false;
 }
 
 void UTypingConfig::read(){
@@ -443,6 +443,14 @@ void UTypingConfig::read(){
 			}else{
 				throw "[config] DebugMode は true または false で指定しなければならない。（デフォルト: false ）";
 			}
+		}else if(!strcmp(ptr1, "ShowProcessTime")){
+			if(!strcmp(ptr2, "true")){
+				f_showProcessTime = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_showProcessTime = false;
+			}else{
+				throw "[config] ShowProcessTime は true または false で指定しなければならない。（デフォルト: false ）";
+			}
 		}else{
 			//throw "[config] 設定できる値は UseMultiThread, LoadSoundType, DebugMode である。";
 			//throw "[config] 設定できる値は LoadSoundType, Volume, FullScreen, ShowFPS, WaitVSync, DebugMode である。";
@@ -453,6 +461,39 @@ void UTypingConfig::read(){
 }
 
 /* ============================================================ */
+
+static bool g_isUsingDxLib = false;
+
+int myDxLib_Init(){
+	int ret;
+	if(!g_isUsingDxLib){
+		ret = DxLib_Init();
+		g_isUsingDxLib = true;
+	}else{
+		ret = 0;
+	}
+	
+	/* ダブルバッファを用いる */
+	SetDrawScreen(DX_SCREEN_BACK);
+	ClearDrawScreen();
+	
+	g_check.begin(GetColor(16, 16, 16));
+	return ret;
+}
+
+
+int myDxLib_End(){
+	int ret;
+	if(g_isUsingDxLib){
+		ret = DxLib_End();
+		g_isUsingDxLib = false;
+	}else{
+		ret = 0;
+	}
+	
+	g_check.end();
+	return ret;
+}
 
 int myScreenFlip(){
 	static int count = 0;
@@ -476,7 +517,17 @@ int myScreenFlip(){
 			DrawStringToHandle(W_WINDOW - width, 0, buf, GetColor(255, 255, 255), g_fontHandleDebug);
 		}
 	}
-	return ScreenFlip();
+	int ret0, ret1;
+	g_check.rap(GetColor(16, 16, 16));
+	ret0 = ScreenFlip();
+	g_check.end();
+	g_check.begin(GetColor(32, 32, 32));
+	ret1 = ClearDrawScreen();
+	g_check.rap(GetColor(16, 16, 16));
+	if(g_config.f_showProcessTime){
+		g_check.draw();
+	}
+	return (ret0 == -1 || ret1 == -1) ? -1 : 0;
 }
 
 /* ============================================================ */
@@ -535,72 +586,7 @@ int editBuffer_1(char ch, char *buf, int &len, int bufSize){
 
 /* ============================================================ */
 
-#define CCHECK_N_DATA (H_WINDOW/8)
-
-class CCheck{
-public:
-	CCheck();
-	void begin();
-	void end();
-	void end(int n);	/* 閾値を超えないと記録されないバージョン */
-	void draw(int t, int Color);	/* t マイクロ秒を長さ 1 で描く */
-private:
-	int m_counter;
-	double m_data[CCHECK_N_DATA];
-	LARGE_INTEGER m_begin;
-	LARGE_INTEGER m_freq;
-};
-
-CCheck g_check;	/* debug */
-
-CCheck::CCheck(){
-	m_counter = 0;
-	for(int i=0; i<CCHECK_N_DATA; i++){
-		m_data[i] = 0;
-	}
-	QueryPerformanceFrequency(&m_freq);
-}
-
-void CCheck::begin(){
-	QueryPerformanceCounter(&m_begin);
-}
-
-void CCheck::end(){
-	LARGE_INTEGER m_end;
-	QueryPerformanceCounter(&m_end);
-	m_data[m_counter] = (double)(m_end.QuadPart - m_begin.QuadPart)
-		/ m_freq.QuadPart * 1000000.0;
-	m_counter++;
-	if(m_counter == CCHECK_N_DATA){
-		m_counter = 0;
-	}
-}
-
-void CCheck::end(int n){
-	double tmp;
-	LARGE_INTEGER m_end;
-	QueryPerformanceCounter(&m_end);
-	tmp = (double)(m_end.QuadPart - m_begin.QuadPart)
-		/ m_freq.QuadPart * 1000000.0;
-	if(tmp >= n){
-		m_data[m_counter] = tmp;
-		m_counter++;
-		if(m_counter == CCHECK_N_DATA){
-			m_counter = 0;
-		}
-	}
-}
-
-void CCheck::draw(int t, int Color){
-	for(int i=0; i<CCHECK_N_DATA; i++){
-		DrawBox(0, i * 8, (m_data[(i + m_counter) % CCHECK_N_DATA] / t),
-			(i + 1) * 8, Color, TRUE);
-	}
-}
-
-/* ============================================================ */
-
-#include "keyinput.h"
+#include "utkeyinput.h"
 
 /* configを参照して分岐 */
 /*
@@ -1316,7 +1302,6 @@ private:
 };
 
 CTyping::CTyping(){
-//#ifndef DEBUG_MODE
 	if(!g_config.f_debugMode){	/* 通常のとき */
 		FILE *fp;
 		fp = fopen("convert.dat","r");
@@ -1339,7 +1324,6 @@ CTyping::CTyping(){
 		}
 		fclose(fp);
 	}else{	/* デバッグ時 */
-//#else
 		char buf1[256], buf2[256], buf3[256];
 		strcpy(buf2, "+");
 		strcpy(buf3, "");
@@ -1349,7 +1333,6 @@ CTyping::CTyping(){
 			m_trie.insert(buf2, CConvertData(buf1, buf3));
 		}
 	}
-//#endif
 	
 	/* チャレンジを初期化（Defaultは何も変なことしない） */
 	/* チャレンジは曲ロードのとき初期化しないので */
@@ -1411,11 +1394,9 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 					throw "譜面が不正です。(+)";
 				}
 				time /= frequencyRate;
-//#ifdef DEBUG_MODE
 				if(g_config.f_debugMode){
 					strcpy(buf, "+");
 				}
-//#endif
 				break;
 			case '*':	/* 表示する歌詞 */
 				{
@@ -1792,14 +1773,10 @@ bool CTyping::idle(LONGLONG timeCount){	/* 問題なければ true を返す */
 		return true;
 	}
 	
-//static CCheck check;
 	if(m_idleCounter++ % 20 == 0){	/* 20回に1回実行 */
-//check.begin();
 		/* 時刻を音楽と同期 */
 		synchronizeTime(m_soundHandleMusic, m_challenge.frequencyRate());
-//check.end();
 	}
-//check.draw(1);
 	
 	return true;
 }
@@ -2056,7 +2033,6 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
 		m_comboMax = m_combo;
 	}
-//#ifndef DEBUG_MODE
 	if(!g_config.f_debugMode){
 		if(m_combo >= 10){	/* コンボが10を超えたらコンボ数を表示 */
 			sprintf(buf, "%s %d", strAccuracy, m_combo);
@@ -2064,7 +2040,6 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 			sprintf(buf, "%s", strAccuracy);
 		}
 	}else{	/* デバッグ時 */
-//#else
 		sprintf(buf, "%+lf", tmp);	/* 時間のずれを表示 */
 		if(-SEC_FAIR < tmp && tmp < 0.0){
 			//color = GetColor((int)255 * (-tmp/SEC_FAIR), (int)255 * (1 - (-tmp/SEC_FAIR)), 0);
@@ -2074,7 +2049,6 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 			color = GetColor(0, 0, 255);
 		}
 	}
-//#endif
 	setText(buf, color);
 	
 	m_scoreAccuracy += score;	/* 得点加算 */
@@ -2135,30 +2109,6 @@ void CTyping::drawGauge(){	/* ゲージを表示 */
 	DrawBox((int)(X_GAUGE - x[3]), y + 3 * h, X_GAUGE, y + 4 * h, COLOR_POOR, TRUE);
 }
 
-#if 0
-void CTyping::drawGauge(int y0, int y1){	/* ゲージを表示 */
-	DrawBox(X0_GAUGE-1, y0-1, X1_GAUGE+1, y1+1, GetColor(64, 64, 64), FALSE);
-	if(m_countAll == 0){	/* 曲を再生するだけ？？　の場合、0で割ることを回避 */
-		return;
-	}
-	int x[6];
-	x[0] = 0;
-	x[1] = (m_countAll - 1 + W_GAUGE * (m_countExcellent) )/ m_countAll;
-	x[2] = (m_countAll - 1 + W_GAUGE * (m_countExcellent + m_countGood) )/ m_countAll;
-	x[3] = (m_countAll - 1 + W_GAUGE * (m_countExcellent + m_countGood + m_countFair) )/ m_countAll;
-	x[4] = (m_countAll - 1 + W_GAUGE * (m_countExcellent + m_countGood + m_countFair + m_countPoor) )/ m_countAll;
-	x[5] = W_GAUGE;
-	for(int i=0; i<6; i++){
-		x[i] += X0_GAUGE;
-	}
-	DrawBox(x[0], y0, x[1], y1, COLOR_EXCELLENT, TRUE);
-	DrawBox(x[1], y0, x[2], y1, COLOR_GOOD, TRUE);
-	DrawBox(x[2], y0, x[3], y1, COLOR_FAIR, TRUE);
-	DrawBox(x[3], y0, x[4], y1, COLOR_POOR, TRUE);
-	DrawBox(x[4], y0, x[5], y1, GetColor(0, 0, 0), TRUE);
-}
-#endif
-
 /* ------------------------------------------------------------ */
 
 /* timeDiff: ちょうどの位置の何秒後か */
@@ -2212,24 +2162,6 @@ void CTyping::draw(){
 		"( %d + %d ), ( %d / %d / %d / %d), %d",
 		m_scoreAccuracy, m_scoreTyping, m_countExcellent, m_countGood, m_countFair, m_countPoor, m_comboMax);
 	//*/
-#if 0
-	{	/* 現在の歌詞の大きなかたまりを表示 */
-		vector<Lyrics>::iterator i = m_lyricsPosition;
-		while((*i).ch != ' '){	/* ブロックの最初でなければ戻る */
-			i--;
-		}
-		string str;
-		i++;
-		if((*i).ch != '\n'){
-			do{
-				str += (*i).ch;
-				i++;
-			}while((*i).ch != ' ');	/* 次のブロックが始まるまで */
-			DrawStringToHandle(10, 60, str.c_str(),
-				GetColor(255, 255, 255), m_fontHandleNormal);
-		}
-	}
-#endif
 	
 	/* 小節線、拍線を表示 */
 	while((*m_beatLineDrawLeft).time != INFTY){
@@ -2525,26 +2457,20 @@ void CTyping::mainLoop(){
 	m_isReplay = false;
 	m_replayData.clear();
 	
-	ClearDrawScreen();
+	//ClearDrawScreen();
 	while(1){
-//check.begin();
+g_check.rap(GetColor(16, 0, 0));
 		draw();
-//check.end();
-//check3.end();
 		myScreenFlip();
 		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
-//check2.end();
-//check2.begin();
+		
+g_check.rap(GetColor(16, 16, 0));
 	//ProcessStreamSoundMemAll();
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		if(ProcessMessage() == -1){
 			break;
 		}
-//g_check.draw(16666/100, GetColor(64, 64, 64));
-//check2.draw(16666/100, GetColor(32, 32, 64));
-//check3.draw(16666/100, GetColor(64, 64, 32));
-//check.draw(16666/100, GetColor(64, 32, 32));
-//check3.begin();
+g_check.rap(GetColor(0, 0, 16));
 		while(1){
 			LONGLONG timeCount;
 			char ch = GetKeyboardInput(timeCount);
@@ -2558,6 +2484,7 @@ void CTyping::mainLoop(){
 			keyboard(ch, timeCount);
 		}
 		
+g_check.rap(GetColor(0, 16, 0));
 		if(!idle(timeCountTmp)){
 			break;
 		}
@@ -2570,18 +2497,21 @@ void CTyping::replayLoop(){
 	
 	vector<ReplayData>::iterator itrReplay = m_replayData.begin();
 	
-	ClearDrawScreen();
+	//ClearDrawScreen();
 	while(1){
+g_check.rap(GetColor(16, 0, 0));
 		draw();
 		myScreenFlip();
 		
 		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
 		
+g_check.rap(GetColor(16, 16, 0));
 		if(ProcessMessage() == -1){
 			break;
 		}
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		
+g_check.rap(GetColor(0, 0, 16));
 		while(1){
 			LONGLONG timeCount;
 			char ch = GetKeyboardInput(timeCount);
@@ -2605,6 +2535,7 @@ void CTyping::replayLoop(){
 			}
 		}
 		
+g_check.rap(GetColor(0, 16, 0));
 		if(!idle(timeCountTmp)){
 			break;
 		}
@@ -2623,7 +2554,7 @@ bool CTyping::replaySave(){
 		if(ProcessMessage() == -1){
 			return false;
 		}
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		
 		DrawStringToHandle(10, 10, "save replay as", GetColor(255, 255, 255), m_fontHandleBig);
 		if(len != 0){
@@ -2666,7 +2597,7 @@ L1:
 		if(ProcessMessage() == -1){
 			return false;
 		}
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		if(isSaved){
 			DrawStringToHandle(10, 10, "saved as", GetColor(255, 255, 255), m_fontHandleBig);
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
@@ -2693,7 +2624,7 @@ bool CTyping::replayLoad(){
 		if(ProcessMessage() == -1){
 			return false;
 		}
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		
 		DrawStringToHandle(10, 10, "find replay file", GetColor(255, 255, 255), m_fontHandleBig);
 		if(len != 0){
@@ -2746,7 +2677,7 @@ L1:
 		if(ProcessMessage() == -1){
 			return false;
 		}
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		if(isLoaded){
 			DrawStringToHandle(10, 10, "loaded", GetColor(255, 255, 255), m_fontHandleBig);
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
@@ -2918,24 +2849,6 @@ void CMusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 				GetColor(brightness, brightness, 0), m_fontHandleNormal);
 		}
 	}
-#if 0
-	char buf[256];
-	strcpy(buf, "");
-	for(int i=0; i<5; i++){
-		if(m_level <= i){
-			strcat(buf, "☆");
-		}else{
-			strcat(buf, "★");
-		}
-	}
-	//width = GetDrawFormatStringWidthToHandle(m_fontHandleNormal, "%s", buf);
-	DrawFormatStringToHandle((W_WINDOW - 280)/* - width*/, y + (60-22), GetColor(255, 255, 0), m_fontHandleNormal,
-		"%s", buf);
-	
-	strcpy(buf, "☆☆☆☆☆");
-	DrawFormatStringToHandle((W_WINDOW - 280)/* - width*/, y + (60-22), color, m_fontHandleNormal,
-		"%s", buf);
-#endif
 	
 	/* タイトル（最後に書く） */
 	DrawStringToHandle(X_TITLE, y + Y_TITLE, m_title, color, m_fontHandleTitle);
@@ -3225,7 +3138,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 			break;
 		}
 		
-		ClearDrawScreen();
+		//ClearDrawScreen();
 		drawMain(infoArrayItr, rankingPos, challenge, fontHandleDefault);
 		myScreenFlip();
 		
@@ -3380,15 +3293,19 @@ void main1(bool &isWindowMode){
 			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
 		}
 		
-		SetDrawScreen(DX_SCREEN_BACK);
-		/* ダブルバッファを用いる */
+		/* VSyncを待つかを設定 */
+		if(SetWaitVSyncFlag(g_config.f_waitVSync) == -1){
+			throw "WaitVSyncの設定に失敗しました。";
+		}
+		
+		myDxLib_Init();
 		
 		g_fontHandleDebug = CreateFontToHandle(NULL, 10, 3, DX_FONTTYPE_EDGE);
 		
 		{
 			int fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 48, 3, DX_FONTTYPE_ANTIALIASING_EDGE);
 			int fontHandleInfo = CreateFontToHandle("ＭＳ 明朝", 24, 3, DX_FONTTYPE_ANTIALIASING);
-			ClearDrawScreen();
+			//ClearDrawScreen();
 			drawTitle(fontHandleTitle, fontHandleInfo, "Now loading...");
 			myScreenFlip();
 			
@@ -3409,8 +3326,8 @@ void main1(bool &isWindowMode){
 				if(ProcessMessage() == -1){
 					return;
 				}
-				SetDrawScreen(DX_SCREEN_BACK);
-				ClearDrawScreen();
+				//SetDrawScreen(DX_SCREEN_BACK);
+				//ClearDrawScreen();
 				drawTitle(fontHandleTitle, fontHandleInfo, isCorrectID ? "Press Enter key." : "Wrong UTyping user ID...");
 				myScreenFlip();
 				char ch = GetKeyboardInput();
@@ -3434,6 +3351,10 @@ void main1(bool &isWindowMode){
 					break;	/* trueが戻った場合（再起動するとき） */
 				}
 			}
+			
+			g_infoArray.clear();
+			
+			DeleteFontToHandle(g_fontHandleDebug);
 			DeleteFontToHandle(fontHandleTitle);
 			DeleteFontToHandle(fontHandleInfo);
 			
@@ -3448,37 +3369,13 @@ void main1(bool &isWindowMode){
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		LPSTR lpCmdLine, int nCmdShow){
 	
-	SetMainWindowText("UTyping");
 	try{
-//SetGraphMode(W_WINDOW, H_WINDOW, 32);
-		if(SetWaitVSyncFlag(g_config.f_waitVSync) == -1){
-			throw "WaitVSyncの設定に失敗しました。";
-		}
 		g_config.read();	/* configを読み込む */
 		bool isWindowMode = !g_config.f_fullScreen;
 		ChangeWindowMode(isWindowMode);
 		
-		if(DxLib_Init() == -1){
-			return -1;
-		}
-		
 		SetHookWinProc(KeyboardInputProc);
-		/* VSyncを待つかを設定 */
 		
-		/*
-		if(g_config.f_useMultiThread){
-			InitializeCriticalSection(&g_csKeyboardInput);
-			HANDLE hThreadKI;
-			hThreadKI = newThread(KeyboardInputThread, NULL);
-			main1();
-			DxLib_End();
-			
-			deleteThread(hThreadKI);
-			DeleteCriticalSection(&g_csKeyboardInput);
-		}else{
-			main1();
-		}
-		*/
 		main1(isWindowMode);
 	}catch(int n){
 		char buf[256];
@@ -3487,6 +3384,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	}catch(char *str){
 		outputError(str);
 	}
-	DxLib_End();
+	myDxLib_End();
 	return 0;
 }
