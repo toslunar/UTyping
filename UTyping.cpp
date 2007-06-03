@@ -144,6 +144,12 @@ CHALLENGE_TAN,
 CHALLENGE_NUM
 };
 
+enum{
+CONFIG_NEVER,
+CONFIG_QUERY,
+CONFIG_ALWAYS,
+};
+
 /* ============================================================ */
 /* グローバル変数とか */
 
@@ -319,146 +325,8 @@ void deleteThread(HANDLE handle){
 
 /* ============================================================ */
 
+#include "utconfig.h"
 /* Config */
-
-class UTypingConfig{
-public:
-	UTypingConfig();
-	void init();
-	void read();
-public:
-	//bool f_useMultiThread;
-	int loadSoundType;
-	int volume;
-	
-	bool f_fullScreen;
-	bool f_showFPS;
-	bool f_waitVSync;
-	
-	bool f_debugMode;
-	
-	bool f_showProcessTime;
-};
-
-UTypingConfig g_config;
-
-UTypingConfig::UTypingConfig(){
-	init();
-}
-
-void UTypingConfig::init(){
-	//f_useMultiThread = true;
-	loadSoundType = DX_SOUNDDATATYPE_MEMPRESS;
-	volume = -1;
-	
-	
-	f_fullScreen = false;
-	f_showFPS = false;
-	f_waitVSync = true;
-	
-	f_debugMode = false;
-	
-	f_showProcessTime = false;
-}
-
-void UTypingConfig::read(){
-	FILE *fp;
-	fp = fopen("UTyping_config.txt", "r");
-	if(!fp){
-		/* configがなければ、特に何もしないでよい。 */
-		/* configがないことをエラーにするのは微妙すぎる。 */
-		return;
-	}
-	char buf[256];
-	while(fgetline(buf, fp)){
-		char *ptr1 = strtok(buf, "=");
-		if(ptr1 == NULL){
-			continue;
-		}
-		char *ptr2 = strtok(NULL, "");
-		if(ptr2 == NULL){
-			ptr2 = "";	/* ""を指させておく */
-		}
-		/*
-		if(!strcmp(ptr1, "UseMultiThread")){
-			if(!strcmp(ptr2, "true")){
-				f_useMultiThread = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_useMultiThread = false;
-			}else{
-				throw "[config] UseMultiThread は true または false で指定しなければならない。（デフォルト: true ）";
-			}
-		}else */
-		if(!strcmp(ptr1, "LoadSoundType")){
-			if(!strcmp(ptr2, "0")){	/* 少し読み込み時間が長い、再生負荷は軽い */
-				loadSoundType = DX_SOUNDDATATYPE_MEMNOPRESS;	/* 読み込むときに圧縮を展開 */
-			}else if(!strcmp(ptr2, "1")){	/* 程々の読み込み時間と再生負荷 */
-				loadSoundType = DX_SOUNDDATATYPE_MEMPRESS;	/* 再生するときに圧縮を展開 */
-			}else if(!strcmp(ptr2, "2")){	/* 読み込み時間は短い、再生負荷は重い */
-				loadSoundType = DX_SOUNDDATATYPE_FILE;	/* メモリにロードしない */
-			}else{
-				throw "[config] LoadSoundType は 0, 1 または 2 で指定しなければならない。（デフォルト: 1 ）";
-			}
-		}else if(!strcmp(ptr1, "Volume")){
-			if(!strcmp(ptr2, "default")){
-				f_debugMode = -1;
-			}else{
-				int n;
-				int tmp;
-				tmp = sscanf(ptr2, "%d", &n);
-				if(tmp < 1 || n < 0 || n > 255){
-					throw "[config] Volume は default または 0 以上 255 以下 で指定しなければならない。（デフォルト: 255 ）";
-				}
-				g_config.volume = n;
-			}
-		}else if(!strcmp(ptr1, "FullScreen")){
-			if(!strcmp(ptr2, "true")){
-				f_fullScreen = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_fullScreen = false;
-			}else{
-				throw "[config] FullScreen は true または false で指定しなければならない。（デフォルト: false ）";
-			}
-		}else if(!strcmp(ptr1, "ShowFPS")){
-			if(!strcmp(ptr2, "true")){
-				f_showFPS = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_showFPS = false;
-			}else{
-				throw "[config] ShowFPS は true または false で指定しなければならない。（デフォルト: false ）";
-			}
-		}else if(!strcmp(ptr1, "WaitVSync")){
-			if(!strcmp(ptr2, "true")){
-				f_waitVSync = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_waitVSync = false;
-			}else{
-				throw "[config] WaitVSync は true または false で指定しなければならない。（デフォルト: true ）";
-			}
-		}else if(!strcmp(ptr1, "DebugMode")){
-			if(!strcmp(ptr2, "true")){
-				f_debugMode = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_debugMode = false;
-			}else{
-				throw "[config] DebugMode は true または false で指定しなければならない。（デフォルト: false ）";
-			}
-		}else if(!strcmp(ptr1, "ShowProcessTime")){
-			if(!strcmp(ptr2, "true")){
-				f_showProcessTime = true;
-			}else if(!strcmp(ptr2, "false")){
-				f_showProcessTime = false;
-			}else{
-				throw "[config] ShowProcessTime は true または false で指定しなければならない。（デフォルト: false ）";
-			}
-		}else{
-			//throw "[config] 設定できる値は UseMultiThread, LoadSoundType, DebugMode である。";
-			//throw "[config] 設定できる値は LoadSoundType, Volume, FullScreen, ShowFPS, WaitVSync, DebugMode である。";
-			throw "[config] 設定できない項目を設定しようとした。";
-		}
-	}
-	fclose(fp);
-}
 
 /* ============================================================ */
 
@@ -1222,15 +1090,18 @@ private:
 	
 	int getDrawPosX(double timeDiff);
 	int getDrawPosY(int x);
-public:
+	
 	void draw();
 	void drawResult();
-	
+public:
 	void mainLoop();
 	void replayLoop();
-	
-	bool replaySave();
-	bool replayLoad();
+private:
+	bool saveReplay(const char *fileName, bool &f_confirm);
+	bool loadReplay(const char *fileName);
+public:
+	bool saveReplayLoop();
+	bool loadReplayLoop();
 private:
 	CTrieNode m_trie;
 	
@@ -2546,7 +2417,66 @@ L1:
 
 /* ------------------------------------------------------------ */
 
-bool CTyping::replaySave(){
+bool CTyping::saveReplay(const char *fileName, bool &f_confirm){
+/* f_confirm = false: 上書き確認がまだ, true: 上書き確認了承済み */
+	FILE *fp;
+	if(g_config.overwriteReplay != CONFIG_ALWAYS && !f_confirm){
+		/* 常に上書きや、上書き確認→確認済みの場合はこの操作は不要 */
+		/* ファイルが存在するかチェックする */
+		fp = fopen(fileName, "rb");
+		if(fp != NULL){	/* 存在した */
+			fclose(fp);
+			if(g_config.overwriteReplay == CONFIG_QUERY){	/* 確認する設定なら */
+				/* 確認することにして */
+				f_confirm = true;
+			}
+			/* どちらにせよ（確認するとしてもひとまず）失敗 */
+			return false;
+		}
+	}
+	f_confirm = false;	/* 戻しておく */
+	fp = fopen(fileName, "wb");
+	if(fp == NULL){
+		return false;
+	}
+	for(vector<ReplayData>::iterator itr = m_replayData.begin(); itr != m_replayData.end(); itr++){
+		fwrite(&(*itr).ch, sizeof(char), 1, fp);
+		fwrite(&(*itr).time, sizeof(double), 1, fp);
+	}
+	fclose(fp);
+	return true;
+}
+
+bool CTyping::loadReplay(const char *fileName){
+	FILE *fp;
+	fp = fopen(fileName, "rb");
+	if(fp == NULL){
+		return false;
+	}
+	m_replayData.clear();	/* 読み込む前に現在入っているのを消去 */
+	while(1){
+		ReplayData rd;
+		if(fread(&rd.ch, sizeof(char), 1, fp) < 1){
+			break;
+		}
+		if(fread(&rd.time, sizeof(double), 1, fp) < 1){
+			break;
+		}
+		m_replayData.push_back(rd);
+	}
+	fclose(fp);
+	return true;
+}
+
+/* ------------------------------------------------------------ */
+
+bool CTyping::saveReplayLoop(){
+	char message[256];
+	strcpy(message, "");
+	bool isSaved = false;
+	
+	bool f_confirm = false;	/* 現在上書き確認を聞いているところであるか */
+	
 	char buf[256];
 	strcpy(buf, "");
 	int len = 0;
@@ -2560,8 +2490,9 @@ bool CTyping::replaySave(){
 		if(len != 0){
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
 		}else{
-			DrawStringToHandle(10, 50, "replay.dat", GetColor(128, 128, 128), m_fontHandleBig);
+			DrawStringToHandle(10, 50, g_config.defaultReplayFile, GetColor(128, 128, 128), m_fontHandleBig);
 		}
+		DrawStringToHandle(10, 90, message, GetColor(255, 255, 255), m_fontHandleBig);
 		
 		myScreenFlip();
 		while(1){
@@ -2569,54 +2500,58 @@ bool CTyping::replaySave(){
 			if(ch == 0){	/* キー入力処理終了 */
 				break;
 			}
-			int ret = editBuffer(ch, buf, len);	/* バッファを操作 */
-			switch(ret){
-			case EDIT_BUFFER_OK:
-				goto L1;
-			case EDIT_BUFFER_CANCEL:
-				return false;
+			if(isSaved){	/* セーブ後、何か押したら戻る */
+				return true;
 			}
-		}
-	}
-L1:
-	if(len == 0){
-		strcpy(buf, "replay.dat");
-	}
-	bool isSaved = false;
-	FILE *fp;
-	fp = fopen(buf, "wb");
-	if(fp != NULL){
-		for(vector<ReplayData>::iterator itr = m_replayData.begin(); itr != m_replayData.end(); itr++){
-			fwrite(&(*itr).ch, sizeof(char), 1, fp);
-			fwrite(&(*itr).time, sizeof(double), 1, fp);
-		}
-		fclose(fp);
-		isSaved = true;
-	}
-	while(1){
-		if(ProcessMessage() == -1){
-			return false;
-		}
-		//ClearDrawScreen();
-		if(isSaved){
-			DrawStringToHandle(10, 10, "saved as", GetColor(255, 255, 255), m_fontHandleBig);
-			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
-		}else{
-			DrawStringToHandle(10, 10, "error", GetColor(255, 255, 255), m_fontHandleBig);
-		}
-		myScreenFlip();
-		while(1){
-			char ch = GetKeyboardInput();
-			if(ch == 0){
-				break;
-			}else{	/* 何か押したら戻る */
-				return isSaved;
+			strcpy(message, "");	/* 何か打ったらメッセージは消去 */
+			if(f_confirm){
+				switch(ch){
+				case CTRL_CODE_ESC:	/* そもそも中断 */
+					return false;
+				case 'y':
+				case 'Y':
+					/* yesならf_confirm=trueの元でセーブ */
+					isSaved = saveReplay((len != 0) ? buf : g_config.defaultReplayFile, f_confirm);
+					if(isSaved){
+						strcpy(message, "saved.");
+					}else{
+						strcpy(message, "error.");
+					}
+					break;
+				case 'n':
+				case 'N':
+					/* noならf_confirmを取り消し、メッセージもなしに戻す */
+					f_confirm = false;
+					strcpy(message, "");
+					break;
+				}
+			}else{
+				int ret = editBuffer(ch, buf, len);	/* バッファを操作 */
+				switch(ret){
+				case EDIT_BUFFER_OK:
+					isSaved = saveReplay((len != 0) ? buf : g_config.defaultReplayFile, f_confirm);
+					if(isSaved){
+						strcpy(message, "saved.");
+					}else if(f_confirm){
+						strcpy(message, "already exists. overwrite? [y/n]");
+					}else{
+						strcpy(message, "error.");
+					}
+					break;
+				case EDIT_BUFFER_CANCEL:
+					return false;
+				}
 			}
 		}
 	}
 }
 
-bool CTyping::replayLoad(){
+bool CTyping::loadReplayLoop(){
+	char message[256];
+	strcpy(message, "");
+	
+	bool isLoaded = false;
+	
 	char buf[256];
 	strcpy(buf, "");
 	int len = 0;
@@ -2630,8 +2565,9 @@ bool CTyping::replayLoad(){
 		if(len != 0){
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
 		}else{
-			DrawStringToHandle(10, 50, "replay.dat", GetColor(128, 128, 128), m_fontHandleBig);
+			DrawStringToHandle(10, 50, g_config.defaultReplayFile, GetColor(128, 128, 128), m_fontHandleBig);
 		}
+		DrawStringToHandle(10, 90, message, GetColor(255, 255, 255), m_fontHandleBig);
 		
 		myScreenFlip();
 		while(1){
@@ -2639,58 +2575,23 @@ bool CTyping::replayLoad(){
 			if(ch == 0){	/* キー入力処理終了 */
 				break;
 			}
+			if(isLoaded){	/* ロード後、何か押したら戻る */
+				return true;
+			}
+			strcpy(message, "");	/* 何か打ったらメッセージは消去 */
+			
 			int ret = editBuffer(ch, buf, len);	/* バッファを操作 */
 			switch(ret){
 			case EDIT_BUFFER_OK:
-				goto L1;
+				isLoaded = loadReplay((len != 0) ? buf : g_config.defaultReplayFile);
+				if(isLoaded){
+					strcpy(message, "loaded.");
+				}else{
+					strcpy(message, "error.");
+				}
+				break;
 			case EDIT_BUFFER_CANCEL:
 				return false;
-			}
-		}
-	}
-L1:
-	if(len == 0){
-		strcpy(buf, "replay.dat");
-	}
-	bool isLoaded = false;
-	FILE *fp;
-	fp = fopen(buf, "rb");
-	if(fp != NULL){
-		m_replayData.clear();	/* 読み込む前に現在入っているのを消去 */
-		while(1){
-			ReplayData rd;
-			if(fread(&rd.ch, sizeof(char), 1, fp) < 1){
-				break;
-			}
-			if(fread(&rd.time, sizeof(double), 1, fp) < 1){
-				break;
-			}
-			m_replayData.push_back(rd);
-		}
-		fclose(fp);
-		isLoaded = true;
-	}
-	while(1){
-		if(isLoaded){	/* ロードされたらすぐ戻ることにしてみる */
-			return isLoaded;
-		}
-		if(ProcessMessage() == -1){
-			return false;
-		}
-		//ClearDrawScreen();
-		if(isLoaded){
-			DrawStringToHandle(10, 10, "loaded", GetColor(255, 255, 255), m_fontHandleBig);
-			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
-		}else{
-			DrawStringToHandle(10, 10, "error", GetColor(255, 255, 255), m_fontHandleBig);
-		}
-		myScreenFlip();
-		while(1){
-			char ch = GetKeyboardInput();
-			if(ch == 0){
-				break;
-			}else{	/* 何か押したら戻る */
-				return isLoaded;
 			}
 		}
 	}
@@ -3177,10 +3078,10 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 			break;
 		*/
 		case '!':	/* リプレイを保存*/
-			typing.replaySave();
+			typing.saveReplayLoop();
 			break;
 		case '?':	/* 保存されたリプレイを再生 */
-			if(!typing.replayLoad()){
+			if(!typing.loadReplayLoop()){
 				break;	/* リプレイの読み込みに失敗した場合は戻る */
 			}
 			typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
@@ -3293,12 +3194,12 @@ void main1(bool &isWindowMode){
 			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
 		}
 		
+		myDxLib_Init();
+		
 		/* VSyncを待つかを設定 */
 		if(SetWaitVSyncFlag(g_config.f_waitVSync) == -1){
 			throw "WaitVSyncの設定に失敗しました。";
 		}
-		
-		myDxLib_Init();
 		
 		g_fontHandleDebug = CreateFontToHandle(NULL, 10, 3, DX_FONTTYPE_EDGE);
 		
