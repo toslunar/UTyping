@@ -19,9 +19,9 @@ CCheck g_class
 */
 
 /*
-#define chkI LONGLONG txxx,tyyy;
-#define chkB txxx=GetNowHiPerformanceCount();
-#define chkE tyyy=GetNowHiPerformanceCount(); {int t=(int)(tyyy-txxx); if(t>=10)printfDx((t>=16384)?"--------%5d--------\n":"%5d\n", t);}
+#define chkI double txxx,tyyy;
+#define chkB txxx=myGetNowHiPerformanceCount();
+#define chkE tyyy=myGetNowHiPerformanceCount(); {int t=(int)(tyyy-txxx); if(t>=10)printfDx((t>=16384)?"--------%5d--------\n":"%5d\n", t);}
 */
 
 #define COLOR_EXCELLENT GetColor(255, 255, 0)
@@ -319,6 +319,21 @@ void deleteThread(HANDLE handle){
 
 //#endif
 #endif
+
+/* ============================================================ */
+
+double myGetNowHiPerformanceCount(){
+	static LARGE_INTEGER Frequency = {0, 0};
+	LARGE_INTEGER PerformanceCount;
+	if(Frequency.QuadPart == 0){
+		if(!QueryPerformanceFrequency(&Frequency)){
+			throw "高分解能パフォーマンスカウンタが取得できません。";
+		}
+	}
+	QueryPerformanceCounter(&PerformanceCount);
+	return (double)PerformanceCount.QuadPart / Frequency.QuadPart;
+}
+
 /* ============================================================ */
 
 #include "utcheck.h"
@@ -366,14 +381,15 @@ int myDxLib_End(){
 int myScreenFlip(){
 	static int count = 0;
 	static double fps = -1.0;
-	static LONGLONG timeCountBegin;
+	static double timeCountBegin;
 	if(g_config.f_showFPS){
 		if(count == 0){
-			timeCountBegin = GetNowHiPerformanceCount();
+			timeCountBegin = myGetNowHiPerformanceCount();
 		}else if(count == 30){
-			LONGLONG timeCountEnd = GetNowHiPerformanceCount();
-			fps = 30000000 / (double)(timeCountEnd - timeCountBegin);
+			double timeCountEnd = myGetNowHiPerformanceCount();
+			fps = 30.0 / (timeCountEnd - timeCountBegin);
 			/* x[us] のとき 30/(x/1000000) = 30000000/x */
+			/* てか、x[s]のとき30/x */
 			count = 0;
 			timeCountBegin = timeCountEnd;
 		}
@@ -466,7 +482,7 @@ char GetKeyboardInput(){
 	}
 }
 
-char GetKeyboardInput(LONGLONG &timeCount){
+char GetKeyboardInput(double &timeCount){
 	if(g_config.f_useMultiThread){
 		return MT_GetKeyboardInput(timeCount);
 	}else{
@@ -1061,9 +1077,9 @@ public:
 	void unload();
 	void setChallenge(CChallenge &challenge);
 private:
-	void keyboard(char ch, LONGLONG timeCount);
+	void keyboard(char ch, double timeCount);
 	void keyboard_1(char ch, double time);
-	bool idle(LONGLONG timeCount);
+	bool idle(double timeCount);
 private:
 	void loadRanking(const char *fileName);
 	void unloadRanking();
@@ -1073,7 +1089,7 @@ private:
 	void setTime();
 	void synchronizeTime(int soundHandle, double frequencyRate);
 	double getTime();
-	double getTime(LONGLONG timeCount);
+	double getTime(double timeCount);
 	
 	void phase(int phaseNum);
 	
@@ -1129,7 +1145,7 @@ private:
 	
 	int m_phase;
 	
-	LONGLONG m_timeBegin;
+	double m_timeBegin;
 	
 	int m_score;
 	int m_scoreTyping;	/* タイピングによる得点 */
@@ -1262,7 +1278,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			case '+':	/* 打つ歌詞 */
 				n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
 				if(n < 2){
-					throw "譜面が不正です。(+)";
+					throw "[譜面] 書式が不正です。(+)";
 				}
 				time /= frequencyRate;
 				if(g_config.f_debugMode){
@@ -1273,11 +1289,11 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 				{
 					char *ptr = strtok(tmpBuf + 1, " \t\n");	/* スペースで区切られるまでの部分を取り出す */
 					if(ptr == NULL){
-						throw "譜面が不正です。(*)";
+						throw "[譜面] 書式が不正です。(*)";
 					}
 					n = sscanf(ptr, "%lf", &time);	/* 時刻を読む */
 					if(n < 1){
-						throw "譜面が不正です。(*)";
+						throw "[譜面] 書式が不正です。(*)";
 					}
 					time /= frequencyRate;
 					ptr = strtok(NULL, "");	/* 残りの部分を取り出す */
@@ -1293,7 +1309,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 				{
 					n = sscanf(tmpBuf + 1, "%lf", &time);	/* 時刻を読む */
 					if(n < 1){
-						throw "譜面が不正です。(=,-)";
+						throw "[譜面] 書式が不正です。(=,-)";
 					}
 					time /= frequencyRate;
 					BeatLine bl;
@@ -1309,7 +1325,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			case '/':	/* 区切り */
 				n = sscanf(tmpBuf + 1, "%lf", &time);
 				if(n < 1){
-					throw "譜面が不正です。(/)";
+					throw "[譜面] 書式が不正です。(/)";
 				}
 				time /= frequencyRate;
 				strcpy(buf, " ");
@@ -1446,7 +1462,7 @@ void CTyping::setChallenge(CChallenge &challenge){
 	m_challenge = challenge;
 }
 
-void CTyping::keyboard(char ch, LONGLONG timeCount){
+void CTyping::keyboard(char ch, double timeCount){
 	if(m_phase == PHASE_READY){	/* 開始前なら */
 		if(m_soundHandleMusic != -1){	/* 音楽がすでに読み込まれた */
 			phase(PHASE_MAIN);
@@ -1578,7 +1594,7 @@ void CTyping::keyboard_1(char ch, double time){
 	return;
 }
 
-bool CTyping::idle(LONGLONG timeCount){	/* 問題なければ true を返す */
+bool CTyping::idle(double timeCount){	/* 問題なければ true を返す */
 	if(m_phase == PHASE_EXIT){	/* 終了することになっている */
 		return false;
 	}
@@ -1674,7 +1690,7 @@ void CTyping::setText(const char *str, int color){	/* 表示文字列を設定 */
 /* ------------------------------------------------------------ */
 
 void CTyping::setTime(){	/* 開始時刻を設定 */
-	m_timeBegin = GetNowHiPerformanceCount();
+	m_timeBegin = myGetNowHiPerformanceCount();
 }
 
 /* 音楽のスタートと開始時刻が等しくなるように、開始時刻を調整 */
@@ -1684,16 +1700,17 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 		return;
 	}
 	
-	int musicTime = (int)(GetSoundCurrentTime(soundHandle) * 1000 / frequencyRate);
+	double musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
 	/* 【 GetSoundCurrentTime を使っているので注意が必要かもしれない】 */
-	int realTime = (int)(GetNowHiPerformanceCount() - m_timeBegin);
-	int diff = realTime - musicTime;
+	/* 曲の周波数を変えてる時は、実際に流れた時間をとるため、周波数の比だけ割る */
+	double realTime = myGetNowHiPerformanceCount() - m_timeBegin;
+	double diff = realTime - musicTime;
 	
 	/* わずかなずれ（GetSoundCurrentTimeでとれないような）は無視 */
-	if(diff >= 500){
-		diff -= 500;
-	}else if(diff <= -500){
-		diff += 500;
+	if(diff >= 0.0005){
+		diff -= 0.0005;
+	}else if(diff <= -0.0005){
+		diff += 0.0005;
 	}else{
 		return;
 	}
@@ -1702,11 +1719,11 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 }
 
 double CTyping::getTime(){	/* 開始時刻からの経過秒を取得 */
-	return (GetNowHiPerformanceCount() - m_timeBegin) / 1000000.0;
+	return myGetNowHiPerformanceCount() - m_timeBegin;
 }
 
-double CTyping::getTime(LONGLONG timeCount){	/* timeCountの開始時刻からの経過秒を取得 */
-	return (int)(timeCount - m_timeBegin) / 1000000.0;
+double CTyping::getTime(double timeCount){	/* timeCountの開始時刻からの経過秒を取得 */
+	return timeCount - m_timeBegin;
 }
 
 /* ------------------------------------------------------------ */
@@ -2313,10 +2330,13 @@ void CTyping::drawResult(){
 			if(boxWidth > W_WINDOW){
 				boxWidth = W_WINDOW;
 			}
-			DrawBox(320 - boxWidth / 2, 200, 320 + boxWidth/2, 280, GetColor(255, 255, 255), TRUE);
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, 170);	/* （1/3の）半透明で描画 */
+			DrawBox(320 - boxWidth / 2, 200, 320 + boxWidth/2, 280, GetColor(170, 170, 170), TRUE);
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, 192);	/* （1/4の）半透明で描画 */
 			DrawFormatStringToHandle(320 - strWidth / 2, 240 - 18,
 				GetColor(0, 0, 0), m_fontHandleBig,
 				"%d 位にランクインしました", m_rank + 1);
+			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);	/* ブレンドしないように戻す */
 		}
 	}
 	return;
@@ -2333,7 +2353,7 @@ void CTyping::mainLoop(){
 g_check.rap(GetColor(16, 0, 0));
 		draw();
 		myScreenFlip();
-		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
+		double timeCountTmp = myGetNowHiPerformanceCount();	/* 時刻を保存しておく */
 		
 g_check.rap(GetColor(16, 16, 0));
 	//ProcessStreamSoundMemAll();
@@ -2343,7 +2363,7 @@ g_check.rap(GetColor(16, 16, 0));
 		}
 g_check.rap(GetColor(0, 0, 16));
 		while(1){
-			LONGLONG timeCount;
+			double timeCount;
 			char ch = GetKeyboardInput(timeCount);
 			if(ch == 0){	/* バッファが空になればキー入力処理終了 */
 				break;
@@ -2374,7 +2394,7 @@ g_check.rap(GetColor(16, 0, 0));
 		draw();
 		myScreenFlip();
 		
-		LONGLONG timeCountTmp = GetNowHiPerformanceCount();	/* 時刻を保存しておく */
+		double timeCountTmp = myGetNowHiPerformanceCount();	/* 時刻を保存しておく */
 		
 g_check.rap(GetColor(16, 16, 0));
 		if(ProcessMessage() == -1){
@@ -2384,7 +2404,7 @@ g_check.rap(GetColor(16, 16, 0));
 		
 g_check.rap(GetColor(0, 0, 16));
 		while(1){
-			LONGLONG timeCount;
+			double timeCount;
 			char ch = GetKeyboardInput(timeCount);
 			if(ch == 0){	/* バッファが空になればキー入力処理終了 */
 				break;
