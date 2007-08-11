@@ -324,14 +324,17 @@ void deleteThread(HANDLE handle){
 
 double myGetNowHiPerformanceCount(){
 	static LARGE_INTEGER Frequency = {0, 0};
+	static LARGE_INTEGER PerformanceCount0;	/* 最初に呼び出した時の値を保存 */
 	LARGE_INTEGER PerformanceCount;
 	if(Frequency.QuadPart == 0){
 		if(!QueryPerformanceFrequency(&Frequency)){
 			throw "高分解能パフォーマンスカウンタが取得できません。";
 		}
+		QueryPerformanceCounter(&PerformanceCount0);
 	}
 	QueryPerformanceCounter(&PerformanceCount);
-	return (double)PerformanceCount.QuadPart / Frequency.QuadPart;
+	return (double)(PerformanceCount.QuadPart - PerformanceCount0.QuadPart) 
+		/ Frequency.QuadPart;
 }
 
 /* ============================================================ */
@@ -1276,12 +1279,17 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			int n;
 			switch(tmpBuf[0]){
 			case '+':	/* 打つ歌詞 */
+				if(g_config.f_debugMode && g_config.f_debugBeat){
+					/* 打つ歌詞はすべて無視 */
+					continue;
+				}
 				n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
 				if(n < 2){
 					throw "[譜面] 書式が不正です。(+)";
 				}
 				time /= frequencyRate;
 				if(g_config.f_debugMode){
+					/* 歌詞を"+"とする */
 					strcpy(buf, "+");
 				}
 				break;
@@ -1321,8 +1329,17 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 					bl.time = time;
 					m_beatLine.push_back(bl);
 				}
+				if(g_config.f_debugMode && g_config.f_debugBeat){
+					strcpy(buf, "+");
+					/* 拍子線を"+"の打つ歌詞とする */
+					break;
+				}
 				continue;
 			case '/':	/* 区切り */
+				if(g_config.f_debugMode && g_config.f_debugBeat){
+					/* 打つ歌詞はすべて無視なので、区切りも無視 */
+					continue;
+				}
 				n = sscanf(tmpBuf + 1, "%lf", &time);
 				if(n < 1){
 					throw "[譜面] 書式が不正です。(/)";
@@ -1466,8 +1483,20 @@ void CTyping::keyboard(char ch, double timeCount){
 	if(m_phase == PHASE_READY){	/* 開始前なら */
 		if(m_soundHandleMusic != -1){	/* 音楽がすでに読み込まれた */
 			phase(PHASE_MAIN);
-			PlaySoundMem(m_soundHandleMusic, DX_PLAYTYPE_BACK);	/* 音楽を流し始める */
+			
+			if(g_config.f_debugMode && g_config.debugTime > 0){	/* 途中から始めるデバッグモードのとき */
+				SetSoundCurrentTime(g_config.debugTime, m_soundHandleMusic);
+				/* 【 SetSoundCurrentTime を使っているので注意が必要かもしれない】 */
+				PlaySoundMem(m_soundHandleMusic, DX_PLAYTYPE_BACK, FALSE);	/* 音楽を流し始める */
+			}else{
+				/* 通常時 */
+				PlaySoundMem(m_soundHandleMusic, DX_PLAYTYPE_BACK);	/* 音楽を流し始める */
+			}
+			
 			setTime();	/* 始まった時刻を覚える */
+			
+			synchronizeTime(m_soundHandleMusic, m_challenge.frequencyRate());
+			/* 一応タイマー調節。どちらかといえば、再生開始位置を変更したときに有用。 */
 		}
 		return;
 	}
@@ -1700,11 +1729,19 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 		return;
 	}
 	
-	double musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
+	double musicTime;
+	if(g_config.f_debugMode && g_config.debugTime > 0){	/* 途中から始めるデバッグモードのとき */
+		musicTime = ((GetSoundCurrentTime(soundHandle) + g_config.debugTime) 
+			/ 1000.0) / frequencyRate;
+	}else{
+		/* 通常、【 バグがなければそもそもこれでよいはず 】 */
+		musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
+	}
 	/* 【 GetSoundCurrentTime を使っているので注意が必要かもしれない】 */
 	/* 曲の周波数を変えてる時は、実際に流れた時間をとるため、周波数の比だけ割る */
 	double realTime = myGetNowHiPerformanceCount() - m_timeBegin;
 	double diff = realTime - musicTime;
+//printfDx("%.4f %.4f\n", musicTime, realTime);
 	
 	/* わずかなずれ（GetSoundCurrentTimeでとれないような）は無視 */
 	if(diff >= 0.0005){
