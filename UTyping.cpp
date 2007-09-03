@@ -1199,7 +1199,7 @@ CTyping::CTyping(){
 			throw "convert.dat が開けません。";
 		}
 		char buf[256], buf1[256], buf2[256], buf3[256];
-		while(fgets(buf, sizeof(buf), fp)!=NULL){
+		while(fgetline(buf, fp)!=NULL){
 			int n=sscanf(buf, "%s%s%s", buf1, buf2, buf3);
 			/* ローマ字、日本語、残るローマ字 */
 			if(n<2){
@@ -1730,13 +1730,14 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 	}
 	
 	double musicTime;
-	if(g_config.f_debugMode && g_config.debugTime > 0){	/* 途中から始めるデバッグモードのとき */
-		musicTime = ((GetSoundCurrentTime(soundHandle) + g_config.debugTime) 
-			/ 1000.0) / frequencyRate;
-	}else{
-		/* 通常、【 バグがなければそもそもこれでよいはず 】 */
-		musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
-	}
+	/* この問題は作者のライブラリ修正により解決された */
+//	if(g_config.f_debugMode && g_config.debugTime > 0){	/* 途中から始めるデバッグモードのとき */
+//		musicTime = ((GetSoundCurrentTime(soundHandle) + g_config.debugTime) 
+//			/ 1000.0) / frequencyRate;
+//	}else{
+//		/* 通常、【 バグがなければそもそもこれでよいはず 】 */
+	musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
+//	}
 	/* 【 GetSoundCurrentTime を使っているので注意が必要かもしれない】 */
 	/* 曲の周波数を変えてる時は、実際に流れた時間をとるため、周波数の比だけ割る */
 	double realTime = myGetNowHiPerformanceCount() - m_timeBegin;
@@ -1863,6 +1864,7 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 					}
 					
 					/* 「っ」の処理、全ての3バイト以上への変換に効果があるので注意 */
+					/* 【 てか、これは、convert.datを拡張し、ここで例外処理しなくても済むようにしたい 】 */
 					if(typeBufferLen >= 2 && lyricsPosition + 2 < tmpLyricsPosition){
 					/* 2文字打って、2バイト先(日本語の1文字先)が今回一度に打てる範囲で、さらに採点対象である */
 					/* つまり、「っか」における"kk"の時点で「か」が採点される。 */
@@ -2418,6 +2420,7 @@ g_check.rap(GetColor(0, 16, 0));
 		}
 	}
 L1:
+	return;
 }
 
 void CTyping::replayLoop(){
