@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include <vector>
 #include <deque>
@@ -402,7 +403,11 @@ int myScreenFlip(){
 			sprintf(buf, "[%4.1ffps]", fps);
 			int width = GetDrawStringWidthToHandle(buf, strlen(buf), g_fontHandleDebug);
 			DrawStringToHandle(W_WINDOW - width, 0, buf, GetColor(255, 255, 255), g_fontHandleDebug);
+			/* 右上にfps表示 */
 		}
+	}
+	if(g_config.f_debugMode){	/* デバッグモードなら左上に書いておく */
+		DrawStringToHandle(0, 0, "Debug Mode", GetColor(255, 0, 0), g_fontHandleDebug);
 	}
 	int ret0, ret1;
 	g_check.rap(GetColor(16, 16, 16));
@@ -474,6 +479,15 @@ int editBuffer_1(char ch, char *buf, int &len, int bufSize){
 /* ============================================================ */
 
 #include "utkeyinput.h"
+/*
+char GetKeyboardInput(){
+	return GetInputChar(TRUE);
+}
+
+char GetKeyboardInput(double &timeCount){
+	return GetInputChar(TRUE);
+}
+//*/
 
 /* configを参照して分岐 */
 /*
@@ -924,13 +938,13 @@ CTrieNode *CTrieNode::find(const char *str){
 
 struct Lyrics{
 public:
-	bool isJapanese1(); 
-public:
 	char ch;	/* 変換された文字（あいう、。～abc123+-など）の1バイト */
 	double timeJust,timeUntil;	/* ちょうどの時間、その文字以前だけを打つときに、最も遅い時間 */
 	bool isBlockStart;	/* 1音節（タイミング判定をするかたまり）の最初 */
 	bool isTyped;	/* すでに打たれたか */
 	bool isScoringTarget;	/* 現在タイミング判定をする対象であるか */
+public:
+	bool isJapanese1(); 
 };
 
 bool Lyrics::isJapanese1(){
@@ -944,10 +958,65 @@ bool Lyrics::isJapanese1(){
 /* ============================================================ */
 
 struct LyricsKanji{	/* 表示される歌詞 */
+public:
 	char str[256];	/* 歌詞 */
 	double timeBegin;	/* 表示が始まる時間 */
 	double timeEnd;	/* 表示が終わる時間 */
+public:
+	void draw(int x, int y, int fontHandle) const;
+private:
+	int getDrawColor(bool flag) const;
 };
+
+void LyricsKanji::draw(int x, int y, int fontHandle) const{
+	char buf[256], *ptr1;
+	const char *ptr2;
+	bool flag = true;	/* 普通に書く(true)か、灰色で書く(false)か */
+	ptr1 = buf;
+	ptr2 = this->str;
+	while(*ptr2 != '\0'){
+		if(*ptr2 == '\\'){
+			ptr2++;
+			switch(*ptr2){
+			case '\0':	/* *ptr2を0のままにしてwhileからこのまま抜ける */
+				break;
+			case '|':	/* ここで、色を変更 */
+				{
+					*ptr1 = '\0';
+					int len = strlen(buf);
+					int width = GetDrawStringWidthToHandle(buf, len, fontHandle);
+					DrawStringToHandle(x, y, buf,
+						getDrawColor(flag), fontHandle);
+					x += width;
+					ptr2++;
+					ptr1 = buf;
+					flag = !flag;
+				}
+				break;
+			default:
+				*ptr1++ = *ptr2++;
+				break;
+			}
+		}else if((*ptr2 & 0x80) == 0){
+			*ptr1++ = *ptr2++;
+		}else{
+			*ptr1++ = *ptr2++;
+			if(*ptr2 == '\0'){
+				break;
+			}
+			*ptr1++ = *ptr2++;
+		}
+	}
+	*ptr1 = '\0';
+	DrawStringToHandle(x, y, buf,
+		getDrawColor(flag), fontHandle);
+	return;
+}
+
+int LyricsKanji::getDrawColor(bool flag) const{
+	if(flag)return GetColor(255, 255, 255);
+	else return GetColor(85, 85, 85);
+}
 
 /* ============================================================ */
 
@@ -1336,23 +1405,23 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 				}
 				continue;
 			case '/':	/* 区切り */
-				if(g_config.f_debugMode && g_config.f_debugBeat){
-					/* 打つ歌詞はすべて無視なので、区切りも無視 */
-					continue;
-				}
 				n = sscanf(tmpBuf + 1, "%lf", &time);
 				if(n < 1){
 					throw "[譜面] 書式が不正です。(/)";
 				}
 				time /= frequencyRate;
-				strcpy(buf, " ");
-				
 				if(!m_lyricsKanji.empty()){	/* 表示する歌詞が存在している */
 					LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* そのなかで最後のものを操作 */
 					if(lk.timeEnd == INFTY){	/* 終了時刻が設定されていなければ、現在に設定 */
 						lk.timeEnd = time;
 					}
 				}
+				if(g_config.f_debugMode && g_config.f_debugBeat){
+					/* 打つ歌詞はすべて無視なので、区切りも無視 */
+					continue;
+				}
+				
+				strcpy(buf, " ");
 				break;
 			case '@':
 				sprintf(m_musicFileName, "%s%s", directoryName, tmpBuf + 1);	/* 再生する音楽ファイル名を設定 */
@@ -2253,16 +2322,13 @@ void CTyping::draw(){
 		DrawStringToHandle(X_LYRICS_KANJI - strWidth, Y_LYRICS_KANJI_NEXT, strNext,
 			GetColor(255, 255, 255), m_fontHandleNormal);
 		if(time >= (*m_lyricsKanjiPosition).timeBegin){	/* 表示開始しているなら */
-			DrawStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI,
-				(*m_lyricsKanjiPosition).str,
-				GetColor(255, 255, 255), m_fontHandleNormal);	/* 出力 */
-			DrawStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT,
-				(*(m_lyricsKanjiPosition + 1)).str,
-				GetColor(255, 255, 255), m_fontHandleNormal);	/* Nextを出力 */
+			(*m_lyricsKanjiPosition).draw(
+				X_LYRICS_KANJI, Y_LYRICS_KANJI, m_fontHandleNormal);	/* 出力 */
+			(*(m_lyricsKanjiPosition + 1)).draw(
+				X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT, m_fontHandleNormal);	/* Nextを出力 */
 		}else{
-			DrawStringToHandle(X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT,
-				(*m_lyricsKanjiPosition).str,
-				GetColor(255, 255, 255), m_fontHandleNormal);	/* Nextを出力 */
+			(*m_lyricsKanjiPosition).draw(
+				X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT, m_fontHandleNormal);	/* Nextを出力 */
 		}
 	}
 	
@@ -2672,9 +2738,10 @@ public:
 	void readRanking();
 	
 	void draw(int y, int brightness);
-	void drawRanking(int y, int rankBegin, int rankLen);
 	void drawComment(int y);
+	void drawRanking(int y, int rankBegin, int rankLen);
 	
+	bool titleCmp(char *buf);
 	//void renewFont();
 private:
 	void createFont();
@@ -2831,6 +2898,13 @@ void CMusicInfo::renewFont(){
 	createFont();
 }
 */
+
+bool CMusicInfo::titleCmp(char *buf){
+/* 【 関数名頭悪い。要修正 】 */
+/* タイトルの一部と一致するかを返す */
+	return (strstr(m_title, buf) != NULL) ? true : false;
+}
+
 void CMusicInfo::createFont(){
 	m_fontHandleNormal = CreateFontToHandle(NULL, 16, 3);
 	m_fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 30, 3, DX_FONTTYPE_ANTIALIASING);
@@ -2865,7 +2939,7 @@ vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
 
 /* メイン画面（曲選択画面）を描く */
 void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
-		CChallenge &challenge, int fontHandleDefault){
+		CChallenge &challenge, int inputHandle, int fontHandleDefault){
 	if(rankingPos == -RANKING_DRAW_LEN){
 		DrawBox(10, 120, W_WINDOW - 10, 240, GetColor(32, 32, 64), TRUE);
 		/* タイトルなど表示 */
@@ -2908,34 +2982,43 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	DrawLine(0, H_WINDOW - 25, W_WINDOW, H_WINDOW - 25, GetColor(170, 170, 170));
 	
-	DrawStringToHandle(10, 370, "↑/↓: 曲選択, ←/→: ランキング表示,   Tab: Window ←→ FullScreen,",
-		GetColor(255, 255, 255), fontHandleDefault);
-	
-	DrawStringToHandle(10, 390, "!/?: Replay Save/Load,",
-		GetColor(255, 255, 255), fontHandleDefault);
-	
-	{
-		char *str = "Enter: 曲決定, R: リスト再読, Esc: 終了";
-		int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
-		DrawStringToHandle(W_WINDOW - 10 - width, 390, str,
-			GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
-	}
-	
-	DrawStringToHandle(10, H_WINDOW - 65, "H: Hidden, S: Sudden, C: CircleStealth, L: LyricsStealth,",
-		GetColor(255, 255, 255), fontHandleDefault);
-	DrawStringToHandle(10, H_WINDOW - 45, "</>: Speed Down/Up, +/-: KeyShift",
-		GetColor(255, 255, 255), fontHandleDefault);
-	{
-		char *str = "D: Reset to Default";
-		int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
-		DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 65, str,
-			GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
-	}
-	{
-		char *str = "Q: sin, W: cos, E: tan,";
-		int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
-		DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 45, str,
-			GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
+	if(inputHandle == -1){	/* 検索時以外 */
+		DrawStringToHandle(10, 370, "↑/↓: 曲選択, ←/→: ランキング表示,   F: 曲検索, Enter: 曲決定",
+			GetColor(255, 255, 255), fontHandleDefault);
+		
+		DrawStringToHandle(10, 390, "Tab: Window ←→ FullScreen, R: リスト再読,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		
+		{
+			char *str = "!/?: Replay Save/Load";
+			int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
+			DrawStringToHandle(W_WINDOW - 10 - width, 390, str,
+				GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
+		}
+		
+		DrawStringToHandle(10, H_WINDOW - 65, "[H]idden, [S]udden, [C]ircleStealth, [L]yricsStealth,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 45, "</>: Speed Down/Up, +/-: KeyShift,   Q: sin, W: cos, E: tan,",
+			GetColor(255, 255, 255), fontHandleDefault);
+		{
+			char *str = "Reset to [D]efault";
+			int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
+			DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 65, str,
+				GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
+		}
+		{
+			char *str = "Esc: 終了";
+			int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
+			DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 45, str,
+				GetColor(255, 255, 255), fontHandleDefault);	/* 右から10のところに描画 */
+		}
+	}else{
+		//SetDrawArea(0, 360, W_WINDOW, H_WINDOW - 25);
+		DrawStringToHandle(10, 370, "検索曲名:",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawKeyInputModeString(W_WINDOW, H_WINDOW - 45);	//(W_WINDOW, H_WINDOW - 25);
+		DrawKeyInputString(10, 390, inputHandle);	/* 検索文字列を表示 */
+		//SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
 	}
 	int color;
 	if(challenge.test(CHALLENGE_STEALTH)){
@@ -3015,7 +3098,6 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
 		color = GetColor(64, 64, 64);
 	}
 	DrawStringToHandle(600, H_WINDOW - 20, "[t]", color, fontHandleDefault);
-	
 }
 
 void editChallenge(CChallenge &challenge, char ch){
@@ -3086,6 +3168,18 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 	
 	CChallenge challenge;
 	
+	int inputHandle = -1;	/* 検索用入力のキー入力ハンドル */
+	SetKeyInputStringFont(fontHandleDefault);
+	SetKeyInputStringColor(
+		GetColor( 255 , 255 , 255 ) ,
+		GetColor( 255 , 255 , 255 ) ,
+		GetColor( 255 , 255 ,   0 ) ,
+		GetColor(   0 , 255 , 255 ) ,
+		GetColor( 255 , 255 , 255 ) ,
+		GetColor( 255 ,  0 ,  0 ) ,
+		GetColor( 255 , 255 ,  20 )
+	);
+	
 	vector<CMusicInfo>::iterator infoArrayItr = g_infoArray.begin();
 	int rankingPos = -RANKING_DRAW_LEN;
 	/* -RANKING_DRAW_LENなら、1位のみ表示。こうしておくと、RANKING_DRAW_LEN位ずつ表示するときと都合が良い。 */
@@ -3100,78 +3194,119 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 		}
 		
 		//ClearDrawScreen();
-		drawMain(infoArrayItr, rankingPos, challenge, fontHandleDefault);
+		drawMain(infoArrayItr, rankingPos, challenge, inputHandle, fontHandleDefault);
 		myScreenFlip();
 		
-		char ch = GetKeyboardInput();
-		switch(ch){
-		case CTRL_CODE_ESC:	/* 終了 */
-			retValue = false;
-			goto L1;
-		case 'r':	/* 再読み込み */
-		case 'R':
-			retValue = true;
-			goto L1;
-		case CTRL_CODE_TAB:	/* Window ←→ FullScreen */
-			isWindowMode = !isWindowMode;	/* Windowかどうかを逆にする */
-			retValue = true;
-			goto L1;
-		case CTRL_CODE_CR:	/* ゲーム開始 */
-			typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
-			(*infoArrayItr).load(typing);	/* ゲーム情報「に」譜面・ハイスコアのファイルをロード */
-			/* ↑これをtyping.nanka(infoArrayItr)みたいにしたいんだが、いろいろ面倒 */
-			typing.mainLoop();	/* 描画とかをCTypingに任せる */
-			typing.unload();	/* 終了処理 */
-			
-			rankingPos = -RANKING_DRAW_LEN;
-			/* 戻ってきたときに、詳細ランキングから抜ける */
-			/* （なんとなく、1位にランクインしたのにほかのところが表示されてたら悲しい） */
-			
-			(*infoArrayItr).readRanking();	/* ランキングは更新されているかもしれない */
-			break;
-		/* 最後のゲームのを再生 */
-		/*
-		case '@':
-			(*infoArrayItr).load(typing);
-			typing.replayLoop();
-			typing.unload();
-			break;
-		*/
-		case '!':	/* リプレイを保存*/
-			typing.saveReplayLoop();
-			break;
-		case '?':	/* 保存されたリプレイを再生 */
-			if(!typing.loadReplayLoop()){
-				break;	/* リプレイの読み込みに失敗した場合は戻る */
-			}
-			typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
-			(*infoArrayItr).load(typing);
-			typing.replayLoop();
-			typing.unload();
-			break;
-		case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
-			infoArrayItr = prevInfo(infoArrayItr);
-			rankingPos = -RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
-			infoArrayItr = nextInfo(infoArrayItr);
-			rankingPos = -RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_LEFT:	/* 上位を表示 */
-			if(rankingPos < -RANKING_DRAW_LEN){	/* コメント表示の前へは行けない */
+		if(inputHandle == -1){	/* 検索文字列を入力中ではない */
+			char ch = GetKeyboardInput();
+			switch(ch){
+			case CTRL_CODE_ESC:	/* 終了 */
+				retValue = false;
+				goto L1;
+			case 'r':	/* 再読み込み */
+			case 'R':
+				retValue = true;
+				goto L1;
+			case CTRL_CODE_TAB:	/* Window ←→ FullScreen */
+				isWindowMode = !isWindowMode;	/* Windowかどうかを逆にする */
+				retValue = true;
+				goto L1;
+			case CTRL_CODE_CR:	/* ゲーム開始 */
+				typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
+				(*infoArrayItr).load(typing);	/* ゲーム情報「に」譜面・ハイスコアのファイルをロード */
+				/* ↑これをtyping.nanka(infoArrayItr)みたいにしたいんだが、いろいろ面倒 */
+				typing.mainLoop();	/* 描画とかをCTypingに任せる */
+				typing.unload();	/* 終了処理 */
+				
+				rankingPos = -RANKING_DRAW_LEN;
+				/* 戻ってきたときに、詳細ランキングから抜ける */
+				/* （なんとなく、1位にランクインしたのにほかのところが表示されてたら悲しい） */
+				
+				(*infoArrayItr).readRanking();	/* ランキングは更新されているかもしれない */
+				break;
+			/* 最後のゲームのを再生 */
+			/*
+			case '@':
+				(*infoArrayItr).load(typing);
+				typing.replayLoop();
+				typing.unload();
+				break;
+			*/
+			case '!':	/* リプレイを保存*/
+				typing.saveReplayLoop();
+				break;
+			case '?':	/* 保存されたリプレイを再生 */
+				if(!typing.loadReplayLoop()){
+					break;	/* リプレイの読み込みに失敗した場合は戻る */
+				}
+				typing.setChallenge(challenge);	/* ロード前にチャレンジを設定 */
+				(*infoArrayItr).load(typing);
+				typing.replayLoop();
+				typing.unload();
+				break;
+			case 'f':
+			case 'F':
+				/* キャンセルあり、半角または数字に限定はしない */
+				inputHandle = MakeKeyInput(64, TRUE, FALSE, FALSE);
+				if(inputHandle == -1){
+					throw __LINE__;
+				}
+				SetActiveKeyInput(inputHandle);
+				break;
+			case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
+				infoArrayItr = prevInfo(infoArrayItr);
+				rankingPos = -RANKING_DRAW_LEN;
+				break;
+			case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
+				infoArrayItr = nextInfo(infoArrayItr);
+				rankingPos = -RANKING_DRAW_LEN;
+				break;
+			case CTRL_CODE_LEFT:	/* 上位を表示 */
+				if(rankingPos < -RANKING_DRAW_LEN){	/* コメント表示の前へは行けない */
+					break;
+				}
+				rankingPos -= RANKING_DRAW_LEN;
+				break;
+			case CTRL_CODE_RIGHT:	/* 下位を表示 */
+				if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
+					break;
+				}
+				rankingPos += RANKING_DRAW_LEN;
+				break;
+			default:
+				editChallenge(challenge, ch);
 				break;
 			}
-			rankingPos -= RANKING_DRAW_LEN;
-			break;
-		case CTRL_CODE_RIGHT:	/* 下位を表示 */
-			if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
+			
+		}else{	/* 検索文字列を入力中 */
+			int tmp = CheckKeyInput(inputHandle);
+			switch(tmp){
+			case 0:
 				break;
+			case 1:	/* 入力終了 */
+				char buf[256];
+				GetKeyInputString(buf, inputHandle);
+				{	/* 検索 */
+					vector<CMusicInfo>::iterator tmpItr = infoArrayItr;
+					do{
+						infoArrayItr = nextInfo(infoArrayItr);
+						if(infoArrayItr->titleCmp(buf)){
+							rankingPos = -RANKING_DRAW_LEN;
+							/* 詳細ランキングから抜ける */
+							break;
+						}
+					}while(infoArrayItr != tmpItr);	/* 元の場所に戻ってくるまで */
+				}
+				/* ここで、 break; しない */
+			case 2:
+				/* 上の場合に加え、キャンセルされた場合 */
+				DeleteKeyInput(inputHandle);
+				inputHandle = -1;
+				ClearKeyboardInput();	/* キー入力を消しておく */
+				break;
+			default:	/* 何かエラー（-1のとき） */
+				throw __LINE__;
 			}
-			rankingPos += RANKING_DRAW_LEN;
-			break;
-		default:
-			editChallenge(challenge, ch);
-			break;
 		}
 	}
 	
@@ -3248,11 +3383,6 @@ int readList(){
 void main1(bool &isWindowMode){
 	while(1){
 		g_config.read();	/* configを読み込む */
-		if(!g_config.f_debugMode){
-			SetMainWindowText("UTyping (c)2007 tos");
-		}else{	/* デバッグモードであることを上に出す */
-			SetMainWindowText("UTyping (c)2007 tos -- (Debug Mode)");
-		}
 		
 		myDxLib_Init();
 		
@@ -3334,6 +3464,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		g_config.read();	/* configを読み込む */
 		bool isWindowMode = !g_config.f_fullScreen;
 		ChangeWindowMode(isWindowMode);
+		
+		SetMainWindowText("UTyping (c)2007 tos");
 		
 		SetHookWinProc(KeyboardInputProc);
 		
