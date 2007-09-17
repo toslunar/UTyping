@@ -87,8 +87,10 @@ CCheck g_class
 #define Y_LYRICS_KANJI (Y_LYRICS + 35)
 #define Y_LYRICS_KANJI_NEXT (Y_LYRICS + 70)
 
+#define X_LYRICS_BIG (X_CIRCLE - R_CIRCLE)
 #define Y_LYRICS_BIG 350
 
+#define X_BUFFER (X_CIRCLE - R_CIRCLE)
 #define Y_BUFFER 390
 
 #define X_GAUGE (W_WINDOW - 10)
@@ -794,7 +796,7 @@ private:
 };
 
 CEffect1::CEffect1(){
-	m_fontHandle = CreateFontToHandle("ＭＳ 明朝", CEFFECT1_FONT_SIZE, 2);
+	m_fontHandle = CreateFontToHandle("ＭＳ 明朝", CEFFECT1_FONT_SIZE, 2, DX_FONTTYPE_ANTIALIASING);
 }
 
 CEffect1::~CEffect1(){
@@ -943,6 +945,9 @@ public:
 	bool isBlockStart;	/* 1音節（タイミング判定をするかたまり）の最初 */
 	bool isTyped;	/* すでに打たれたか */
 	bool isScoringTarget;	/* 現在タイミング判定をする対象であるか */
+	double scoringTime;
+		/* タイミング判定をされた時刻、isBlockStart && !isScoringTargetのとき以外は意味はない */
+	double finishedTime;	/* Blockが打ち切られた時刻、負ならまだ、isBlockStartのとき以外は意味はない */
 public:
 	bool isJapanese1(); 
 };
@@ -1299,8 +1304,8 @@ CTyping::CTyping(){
 	
 	m_idleCounter = 0;
 	
-	m_fontHandleNormal = CreateFontToHandle(NULL, 16, 3);
-	m_fontHandleBig = CreateFontToHandle("ＭＳ 明朝", 36, 2);
+	m_fontHandleNormal = CreateFontToHandle(NULL, 16, 2);
+	m_fontHandleBig = CreateFontToHandle("ＭＳ 明朝", 36, 2, DX_FONTTYPE_ANTIALIASING);
 	
 	m_soundHandleMusic = -1;	/* 何も読み込んだりしてはいない */
 }
@@ -1432,6 +1437,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 		}
 		Lyrics ly;
 		ly.isBlockStart = true;
+		ly.finishedTime = -INFTY;
 		ly.isScoringTarget = true;
 		for(char *ptr=bufLast; *ptr!='\0'; ptr++){
 			ly.ch = *ptr;
@@ -2050,6 +2056,7 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 	m_scoreAccuracy += score;	/* 得点加算 */
 	m_score = m_scoreTyping + m_scoreAccuracy;
 	(*lyricsPosition).isScoringTarget = false;	/* 2回以上得点を与えられることはない */
+	(*lyricsPosition).scoringTime = time;	/* 得点がつけられた時刻を記録 */
 }
 
 void CTyping::drawGaugeInit(){
@@ -2263,17 +2270,52 @@ void CTyping::draw(){
 			}
 			buf[len] = '\0';
 			if(len == 0){	/* すべてタイプされていた */
-				continue;
+				if((*i).finishedTime < 0){
+					(*i).finishedTime = time;
+				}
+				// continue;
 			}
 			
 			int Color;
 			if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
 				Color = GetColor(255, 0, 0);
 			}else{
-				Color = GetColor(0, 0, 255);
+				double sTime = (time - (*i).scoringTime) / 0.20;
+				if(sTime < 1.0){
+					if(sTime < 0.0){
+						sTime = 0.0;	/* 時刻が調整されうるので念のため */
+					}
+					Color = GetColor((int)(255*0.4*(1.0+sTime)*(1.0-sTime)),
+						(int)(255*0.4*(1.0-sTime)*(1.0-sTime)),
+						(int)(255*0.4*(1.0+1.5*sTime)));
+				}else{
+					Color = GetColor(0, 0, 255);
+				}
 			}
-			DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
-			DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+			{
+				int dy = 0;
+				if((*i).finishedTime >= 0.0){
+					double fTime = (time - (*i).finishedTime)/0.25;
+					if(fTime >= 1.0){	/* 打ち切ってから十分時間がたった */
+						continue;
+					}
+					if(fTime < 0.0){
+						fTime = 0.0;	/* 時刻が調整されうるので念のため */
+					}
+					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * 0.5*(1.0+fTime)*(1.0-fTime));
+					/* 最初からある程度半透明、さらに徐々に半透明に */
+					dy = (int)(((150.0 * fTime) - 100.0) * fTime);
+					/* 初速度上に100、最終的に50下に */
+				}
+				DrawCircle(posX, Y_CIRCLE + posY + dy, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
+				DrawCircle(posX, Y_CIRCLE + posY + dy, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+#if 0
+				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, GetColor(255, 255, 255), TRUE);	/* 流れる円 */
+#define R_CIRCLE2 (R_CIRCLE - 4)
+				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE2 - 1, Color, TRUE);	/* 流れる円 */
+#endif
+				SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+			}
 			
 			/* 円の下の歌詞 */
 			if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){	/* LyricsStealthなら表示しない */
@@ -2347,7 +2389,9 @@ void CTyping::draw(){
 			}
 			buf[len] = '\0';
 			//int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
-			DrawStringToHandle(X_CIRCLE - R_CIRCLE, Y_LYRICS_BIG, buf,
+			//m_effect1.insert(X_LYRICS_BIG, Y_LYRICS_BIG, buf, GetColor(255, 255, 255), time);
+			//↑こんなあほなことするなってば、自分。
+			DrawStringToHandle(X_LYRICS_BIG, Y_LYRICS_BIG, buf,
 				GetColor(255, 255, 255), m_fontHandleBig);
 		}
 	}
@@ -2355,9 +2399,11 @@ void CTyping::draw(){
 	/* タイプした文字を表示 */
 	{
 		m_typeBuffer[m_typeBufferLen] = '\0';
+		//m_effect1.insert(X_BUFFER, Y_BUFFER, m_typeBuffer, GetColor(255, 255, 255), time);
+		//↑こんなあほなことするなってば、自分。
 		//int strLen = strlen(m_typeBuffer);
 		//int strWidth = GetDrawStringWidthToHandle(m_typeBuffer, strLen, m_fontHandleBig);
-		DrawStringToHandle(X_CIRCLE - R_CIRCLE, Y_BUFFER, m_typeBuffer,
+		DrawStringToHandle(X_BUFFER, Y_BUFFER, m_typeBuffer,
 			GetColor(255, 255, 255), m_fontHandleBig);
 	}
 	
@@ -2762,11 +2808,13 @@ private:
 	static int m_count;	/* 作られているCMusicInfoの個数 */
 	static int m_fontHandleNormal;
 	static int m_fontHandleTitle;
+	static int m_fontHandleRanking;
 };
 
 int CMusicInfo::m_count = 0;
 int CMusicInfo::m_fontHandleNormal;
 int CMusicInfo::m_fontHandleTitle;
+int CMusicInfo::m_fontHandleRanking;
 
 CMusicInfo::CMusicInfo(){
 //printfDx("%d++ ", m_count);
@@ -2890,7 +2938,7 @@ void CMusicInfo::drawComment(int y){
 
 
 void CMusicInfo::drawRanking(int y, int rankBegin, int rankLen){
-	m_ranking.draw(y, rankBegin, rankLen, m_fontHandleNormal);
+	m_ranking.draw(y, rankBegin, rankLen, m_fontHandleRanking);
 }
 /*
 void CMusicInfo::renewFont(){
@@ -2906,13 +2954,15 @@ bool CMusicInfo::titleCmp(char *buf){
 }
 
 void CMusicInfo::createFont(){
-	m_fontHandleNormal = CreateFontToHandle(NULL, 16, 3);
+	m_fontHandleNormal = CreateFontToHandle("ＭＳ ゴシック", 16, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 30, 3, DX_FONTTYPE_ANTIALIASING);
+	m_fontHandleRanking = CreateFontToHandle(NULL, 16, 2);
 }
 
 void CMusicInfo::deleteFont(){	/* フォントを削除 */
 	DeleteFontToHandle(m_fontHandleNormal);
 	DeleteFontToHandle(m_fontHandleTitle);
+	DeleteFontToHandle(m_fontHandleRanking);
 }
 
 /* ============================================================ */
