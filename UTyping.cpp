@@ -2970,6 +2970,7 @@ void CMusicInfo::deleteFont(){	/* フォントを削除 */
 vector<CMusicInfo> g_infoArray;
 
 vector<CMusicInfo>::iterator prevInfo(vector<CMusicInfo>::iterator itr){
+/* 1つ戻る。最初から1つ戻ると最後に。 */
 	if(itr == g_infoArray.begin()){
 		itr = g_infoArray.end();
 	}
@@ -2978,6 +2979,7 @@ vector<CMusicInfo>::iterator prevInfo(vector<CMusicInfo>::iterator itr){
 }
 
 vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
+/* 1つ進む。1つ進んで最後を超えると最初に。 */
 	itr++;
 	if(itr == g_infoArray.end()){
 		itr = g_infoArray.begin();
@@ -2989,25 +2991,41 @@ vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
 
 /* メイン画面（曲選択画面）を描く */
 void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
-		CChallenge &challenge, int inputHandle, int fontHandleDefault){
+		double drawPosY, CChallenge &challenge, int inputHandle, int fontHandleDefault){
 	if(rankingPos == -RANKING_DRAW_LEN){
-		DrawBox(10, 120, W_WINDOW - 10, 240, GetColor(32, 32, 64), TRUE);
-		/* タイトルなど表示 */
-		(*prevInfo(prevInfo(infoArrayItr))).draw(0, 85);
-		          (*prevInfo(infoArrayItr)).draw(60, 128);
-		                    (*infoArrayItr).draw(120, 255);
-		          (*nextInfo(infoArrayItr)).draw(240, 128);
-		(*nextInfo(nextInfo(infoArrayItr))).draw(300, 85);
-		
-		/* 水平線で区切る */
-		DrawLine(10,  60, W_WINDOW - 10,  60, GetColor(85, 85, 85));
-		DrawLine(10, 120, W_WINDOW - 10, 120, GetColor(128, 128, 128));
-		DrawLine(40, 180, W_WINDOW - 40, 180, GetColor(64, 64, 64));
-		DrawLine(10, 240, W_WINDOW - 10, 240, GetColor(128, 128, 128));
-		DrawLine(10, 300, W_WINDOW - 10, 300, GetColor(85, 85, 85));
-		
+		int dy = (int)floor(drawPosY + 0.5);
+		SetDrawArea(0, 0, W_WINDOW, 360);	/* 描画範囲を制限 */
+		DrawBox(10, 120 + dy, W_WINDOW - 10, 240 + dy, GetColor(32, 32, 64), TRUE);
+		DrawLine(40, 180 + dy, W_WINDOW - 40, 180 + dy, GetColor(64, 64, 64));
+		(*infoArrayItr).draw(120 + dy, 255);	/* タイトルなど表示 */
 		/* ランキング表示（1位のみ） */
-		(*infoArrayItr).drawRanking(180 + (60-48)/2, 0, 1);
+		(*infoArrayItr).drawRanking(180 + dy + (60-48)/2, 0, 1);
+		/* タイトルなど表示、水平線で区切る */
+		{	/* 前の曲 */
+			vector<CMusicInfo>::iterator itr = infoArrayItr;
+			int y = 120 + dy;
+			int cnt = 2;	/* 明るさに使うので、初期値にあまり意味はない */
+			while(y >= 0){	/* 枠内の間 */
+				DrawLine(10, y, W_WINDOW - 10, y, GetColor(255/cnt, 255/cnt, 255/cnt));
+				itr = prevInfo(itr);
+				y -= 60;
+				(*itr).draw(y, 255/cnt);
+				cnt++;
+			}
+		}
+		{	/* 後の曲 */
+			vector<CMusicInfo>::iterator itr = infoArrayItr;
+			int y = 240 + dy;
+			int cnt = 2;	/* 明るさに使うので、初期値にあまり意味はない */
+			while(y < 360){	/* 枠内の間 */
+				DrawLine(10, y, W_WINDOW - 10, y, GetColor(255/cnt, 255/cnt, 255/cnt));
+				itr = nextInfo(itr);
+				(*itr).draw(y, 255/cnt);
+				y += 60;
+				cnt++;
+			}
+		}
+		SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
 	}else{
 		DrawBox(10, 10, W_WINDOW - 10, 350, GetColor(32, 32, 64), TRUE);
 		
@@ -3216,6 +3234,8 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 	
 	bool retValue;	/* 画面モードを変えて続ける場合true */
 	
+	double drawPosY = 0.0;	/* 曲選択の時の、表示のずれ */
+	
 	CChallenge challenge;
 	
 	int inputHandle = -1;	/* 検索用入力のキー入力ハンドル */
@@ -3244,8 +3264,19 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 		}
 		
 		//ClearDrawScreen();
-		drawMain(infoArrayItr, rankingPos, challenge, inputHandle, fontHandleDefault);
+		drawMain(infoArrayItr, rankingPos, drawPosY, challenge, inputHandle, fontHandleDefault);
 		myScreenFlip();
+		
+		{
+			int sign = drawPosY==0 ? 0 : drawPosY>0 ? 1 : -1;
+			double tmp = -0.1 * drawPosY;	/* drawPosYを補正する量 */
+			tmp -= sign * 0.05;
+			tmp -= sign * 0.0010 * drawPosY * drawPosY;
+			drawPosY += tmp;
+			if(drawPosY * tmp > 0.0){	/* 0を通り過ぎた */
+				drawPosY = 0.0;
+			}
+		}
 		
 		if(inputHandle == -1){	/* 検索文字列を入力中ではない */
 			char ch = GetKeyboardInput();
@@ -3271,6 +3302,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 				rankingPos = -RANKING_DRAW_LEN;
 				/* 戻ってきたときに、詳細ランキングから抜ける */
 				/* （なんとなく、1位にランクインしたのにほかのところが表示されてたら悲しい） */
+				drawPosY = 0.0;
 				
 				(*infoArrayItr).readRanking();	/* ランキングは更新されているかもしれない */
 				break;
@@ -3303,25 +3335,33 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 				}
 				SetActiveKeyInput(inputHandle);
 				break;
-			case CTRL_CODE_UP:	/* 1つ戻る。最初から1つ戻ると最後に。 */
+			case CTRL_CODE_UP:	/* 前の曲へ */
+				rankingPos = -RANKING_DRAW_LEN;
 				infoArrayItr = prevInfo(infoArrayItr);
-				rankingPos = -RANKING_DRAW_LEN;
+				drawPosY -= 60.0;
 				break;
-			case CTRL_CODE_DOWN:	/* 1つ進む。1つ進んで最後を超えると最初に。 */
-				infoArrayItr = nextInfo(infoArrayItr);
+			case CTRL_CODE_DOWN:	/* 後の曲へ */
 				rankingPos = -RANKING_DRAW_LEN;
+				infoArrayItr = nextInfo(infoArrayItr);
+				drawPosY += 60.0;
 				break;
 			case CTRL_CODE_LEFT:	/* 上位を表示 */
 				if(rankingPos < -RANKING_DRAW_LEN){	/* コメント表示の前へは行けない */
 					break;
 				}
 				rankingPos -= RANKING_DRAW_LEN;
+				if(rankingPos != -RANKING_DRAW_LEN){
+					drawPosY = 0.0;
+				}
 				break;
 			case CTRL_CODE_RIGHT:	/* 下位を表示 */
 				if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
 					break;
 				}
 				rankingPos += RANKING_DRAW_LEN;
+				if(rankingPos != -RANKING_DRAW_LEN){
+					drawPosY = 0.0;
+				}
 				break;
 			default:
 				editChallenge(challenge, ch);
@@ -3343,6 +3383,8 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 						if(infoArrayItr->titleCmp(buf)){
 							rankingPos = -RANKING_DRAW_LEN;
 							/* 詳細ランキングから抜ける */
+							drawPosY = 0.0;
+							/* 検索したものは最初から中心に表示 */
 							break;
 						}
 					}while(infoArrayItr != tmpItr);	/* 元の場所に戻ってくるまで */
