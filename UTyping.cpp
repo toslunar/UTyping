@@ -7,6 +7,7 @@
 #include <vector>
 #include <deque>
 #include <bitset>
+#include <list>
 
 using namespace std;
 
@@ -29,6 +30,11 @@ CCheck g_class
 #define COLOR_GOOD GetColor(0, 255, 0)
 #define COLOR_FAIR GetColor(0, 128, 255)
 #define COLOR_POOR GetColor(128, 128, 128)
+
+#define COLOR_EXCELLENT2 GetColor(255, 255, 128)
+#define COLOR_GOOD2 GetColor(128, 255, 128)
+#define COLOR_FAIR2 GetColor(128, 192, 255)
+#define COLOR_POOR2 GetColor(192, 192, 192)
 
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
@@ -56,6 +62,16 @@ CCheck g_class
 #define RANKING_DRAW_LEN 5
 /* 何位ずつランキングを表示するか */
 /* RANKING_LEN の約数だと表示に無駄がない */
+
+#define H_RANKING1 60
+/* 1位のみを描画するときの幅 */
+
+#define H_RANKING 252
+/* RANKING_LEN 位分を描画するときの幅 */
+#define H_COMMENT H_RANKING
+
+#define MUSIC_INFO_HEIGHT 60
+/* 曲情報の幅 */
 
 /* ============================================================ */
 
@@ -519,7 +535,7 @@ public:
 	void read(FILE *fp);
 	void write(FILE *fp);
 	
-	void draw(int y, int n, int fontHandle);
+	void draw(int x, int y, int n, int fontHandle);
 	
 	bool nameCmp(CScore &score);
 	
@@ -626,7 +642,7 @@ void CScore::write(FILE *fp){
 	writeInt(m_comboMax, fp);
 }
 
-void CScore::draw(int y, int n, int fontHandle){
+void CScore::draw(int x, int y, int n, int fontHandle){
 	char buf[256];
 	int color;
 	/*
@@ -651,7 +667,7 @@ void CScore::draw(int y, int n, int fontHandle){
 	int width;
 	sprintf(buf, "%s: %-8s %10d 点(%10d +%10d ), ", buf2,
 		m_name, m_score, m_scoreAccuracy, m_scoreTyping);
-	DrawStringToHandle(40, y + 6, buf, color, fontHandle);
+	DrawStringToHandle(40 + x, y + 6, buf, color, fontHandle);
 	if(m_comboMax >= 0){
 		sprintf(buf, "最大 %4d コンボ, (%4d/%4d/%4d/%4d/%4d)", m_comboMax,
 			m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass);
@@ -660,7 +676,7 @@ void CScore::draw(int y, int n, int fontHandle){
 			m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass);
 	}
 	width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandle);
-	DrawStringToHandle((W_WINDOW - 40) - width, y + 26, buf, color, fontHandle);
+	DrawStringToHandle((W_WINDOW - 40) - width + x, y + (48-6-16), buf, color, fontHandle);
 }
 
 bool CScore::nameCmp(CScore &score){
@@ -680,7 +696,7 @@ public:
 	void read();
 	void write();
 	
-	void draw(int y, int rankBegin, int rankLen, int fontHandle);
+	void draw(int x, int y, int rankBegin, int rankLen, int fontHandle);
 private:
 	FILE *m_fp;
 	CScore m_score[RANKING_LEN];
@@ -760,13 +776,13 @@ void CRanking::write(){
 }
 
 /* rankBeginからrankLen位分表示 */
-void CRanking::draw(int y, int rankBegin, int rankLen, int fontHandle){
+void CRanking::draw(int x, int y, int rankBegin, int rankLen, int fontHandle){
 	for(int i = 0; i < rankLen; i++){
 		int j = rankBegin + i;	/* 書く順位 */
 		if(j >= RANKING_LEN){	/* 記録されているランキングの外 */
 			break;
 		}
-		m_score[j].draw(y + 48 * i, j + 1, fontHandle);	/* 実際は、0番目は1位 etc. */
+		m_score[j].draw(x, y + 48 * i, j + 1, fontHandle);	/* 実際は、0番目は1位 etc. */
 	}
 }
 
@@ -947,7 +963,10 @@ public:
 	bool isScoringTarget;	/* 現在タイミング判定をする対象であるか */
 	double scoringTime;
 		/* タイミング判定をされた時刻、isBlockStart && !isScoringTargetのとき以外は意味はない */
+	//int r, g, b;	/* 打ち始めのエフェクトの色（scoringTimeが有効の時、有効） */
 	double finishedTime;	/* Blockが打ち切られた時刻、負ならまだ、isBlockStartのとき以外は意味はない */
+	double x, y, vx, vy;
+		/* （finishedTimeが非負の時）打ち切られた時の跳ねかた（向きはランダム）を保持 */
 public:
 	bool isJapanese1(); 
 };
@@ -1248,6 +1267,7 @@ private:
 	
 	double m_gauge[4];	/* ゲージの現在描かれる長さ */
 	double m_gaugeRate;	/* ↑の長さ1に相当する画面上の長さ */
+	double m_gaugeLight[4];	/* ゲージのそれぞれを照らす光の強さ */
 	
 	char m_text[256];
 	int m_textColor;
@@ -2015,22 +2035,50 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 		m_countExcellent++;
 		strAccuracy = "優";
 		color = COLOR_EXCELLENT;
+		
+		m_gaugeLight[0] = 1.0;
+		/*
+		(*lyricsPosition).r = 192;
+		(*lyricsPosition).g = 192;
+		(*lyricsPosition).b = 64;
+		*/
 	}else if(timeDiff < SEC_GOOD){
 		score = SCORE_GOOD + scoreCombo;
 		m_countGood++;
 		strAccuracy = "良";
 		color = COLOR_GOOD;
+		
+		m_gaugeLight[1] = 1.0;
+		/*
+		(*lyricsPosition).r = 170;
+		(*lyricsPosition).g = 170;
+		(*lyricsPosition).b = 85;
+		*/
 	}else if(timeDiff < SEC_FAIR){
 		score = SCORE_FAIR + scoreCombo;
 		m_countFair++;
 		strAccuracy = "可";
 		color = COLOR_FAIR;
+		
+		m_gaugeLight[2] = 1.0;
+		/*
+		(*lyricsPosition).r = 128;
+		(*lyricsPosition).g = 128;
+		(*lyricsPosition).b = 128;
+		*/
 	}else{
 		score = SCORE_POOR;
 		m_countPoor++;
 		m_combo = 0;	/* コンボが途切れていた */
 		strAccuracy = "不可";
 		color = COLOR_POOR;
+		
+		m_gaugeLight[3] = 1.0;
+		/*
+		(*lyricsPosition).r = 85;
+		(*lyricsPosition).g = 85;
+		(*lyricsPosition).b = 85;
+		*/
 	}
 	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
 		m_comboMax = m_combo;
@@ -2062,6 +2110,7 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 void CTyping::drawGaugeInit(){
 	for(int i=0; i<4; i++){	/* 最初の値 */
 		m_gauge[i] = 0.0;
+		m_gaugeLight[i] = 0.0;
 	}
 	m_gaugeRate = 20.0;	/* 最初の、長さ1あたりの表示する長さ */
 }
@@ -2106,10 +2155,25 @@ void CTyping::drawGauge(){	/* ゲージを表示 */
 		x[i] = m_gauge[i] * m_gaugeRate;
 	}
 	DrawBox(X_GAUGE - W_GAUGE, y, X_GAUGE, y + 4 * h, GetColor(32, 32, 32), TRUE);
-	DrawBox((int)(X_GAUGE - x[0]), y, X_GAUGE, y + h, COLOR_EXCELLENT, TRUE);
-	DrawBox((int)(X_GAUGE - x[1]), y + h, X_GAUGE, y + 2 * h, COLOR_GOOD, TRUE);
+	/* それぞれの長さを表示 */
+	DrawBox((int)(X_GAUGE - x[0]), y        , X_GAUGE, y +     h, COLOR_EXCELLENT, TRUE);
+	DrawBox((int)(X_GAUGE - x[1]), y +     h, X_GAUGE, y + 2 * h, COLOR_GOOD, TRUE);
 	DrawBox((int)(X_GAUGE - x[2]), y + 2 * h, X_GAUGE, y + 3 * h, COLOR_FAIR, TRUE);
 	DrawBox((int)(X_GAUGE - x[3]), y + 3 * h, X_GAUGE, y + 4 * h, COLOR_POOR, TRUE);
+	
+	/* 最近変更されたものを照らす */
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[0]));
+	DrawBox(X_GAUGE - W_GAUGE, y        , X_GAUGE, y +     h, COLOR_EXCELLENT2, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[1]));
+	DrawBox(X_GAUGE - W_GAUGE, y +     h, X_GAUGE, y + 2 * h, COLOR_GOOD2, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[2]));
+	DrawBox(X_GAUGE - W_GAUGE, y + 2 * h, X_GAUGE, y + 3 * h, COLOR_FAIR2, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[3]));
+	DrawBox(X_GAUGE - W_GAUGE, y + 3 * h, X_GAUGE, y + 4 * h, COLOR_POOR2, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+	for(int i=0; i<4; i++){
+		m_gaugeLight[i] *= 0.85;
+	}
 }
 
 /* ------------------------------------------------------------ */
@@ -2217,7 +2281,8 @@ void CTyping::draw(){
 			}
 			double timeDiff = time - (*m_lyricsDrawLeft).timeJust;
 			int posX = getDrawPosX(timeDiff);
-			if(posX >= -(R_CIRCLE + 50)){	/* 円をはみ出る歌詞を考慮して広めに取る */
+			if(posX >= -(R_CIRCLE + 300)){
+				/* 円をはみ出る歌詞や、打ち切って跳ねることを考慮して広めに取る */
 				/* 画面から出ていない */
 				break;
 			}
@@ -2232,7 +2297,7 @@ void CTyping::draw(){
 			}
 			double timeDiff = time - (*m_lyricsDrawRight).timeJust;
 			int posX = getDrawPosX(timeDiff);
-			if(posX >= W_WINDOW + (R_CIRCLE + 50)){	/* 円をはみ出る歌詞を考慮して広めに取る */
+			if(posX >= W_WINDOW + R_CIRCLE){
 				/* 画面に入ってきていない */
 				break;
 			}
@@ -2271,7 +2336,15 @@ void CTyping::draw(){
 			buf[len] = '\0';
 			if(len == 0){	/* すべてタイプされていた */
 				if((*i).finishedTime < 0){
+					/* 時刻を保存 */
 					(*i).finishedTime = time;
+					/* 位置を保存 */
+					(*i).x = posX;
+					(*i).y = posY;
+					double arg = (GetRand(20) - 10) / 10.0;
+					/* -1.0以上1.0以下0.1刻みでランダム */
+					(*i).vx = 100.0 * sin(arg);
+					(*i).vy = 100.0 * cos(arg);
 				}
 				// continue;
 			}
@@ -2285,15 +2358,29 @@ void CTyping::draw(){
 					if(sTime < 0.0){
 						sTime = 0.0;	/* 時刻が調整されうるので念のため */
 					}
+					
 					Color = GetColor((int)(255*0.4*(1.0+sTime)*(1.0-sTime)),
 						(int)(255*0.4*(1.0-sTime)*(1.0-sTime)),
 						(int)(255*0.4*(1.0+1.5*sTime)));
+					
+#if 0
+					double r,g,b,a;
+					/* 普通に変化させたときの色に */
+					r = 255 * (1.0-sTime) * (1.0-sTime);	//(1.0-sTime*sTime);
+					g = 0.0;
+					b = 255 * sTime*(2.0-sTime);
+					/* エフェクトの色を重ねる */
+					a = (1.0-sTime)*(1.0-sTime);
+					r += a * ((*i).r - r);
+					g += a * ((*i).g - g);
+					b += a * ((*i).b - b);
+					Color = GetColor((int)r, (int)g, (int)b);
+#endif
 				}else{
 					Color = GetColor(0, 0, 255);
 				}
 			}
 			{
-				int dy = 0;
 				if((*i).finishedTime >= 0.0){
 					double fTime = (time - (*i).finishedTime)/0.25;
 					if(fTime >= 1.0){	/* 打ち切ってから十分時間がたった */
@@ -2302,16 +2389,17 @@ void CTyping::draw(){
 					if(fTime < 0.0){
 						fTime = 0.0;	/* 時刻が調整されうるので念のため */
 					}
-					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * 0.5*(1.0+fTime)*(1.0-fTime));
+					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * 0.3 * (1.0 - fTime*fTime));
 					/* 最初からある程度半透明、さらに徐々に半透明に */
-					dy = (int)(((150.0 * fTime) - 100.0) * fTime);
-					/* 初速度上に100、最終的に50下に */
+					posX = (int)((*i).vx * fTime) + (*i).x;
+					posY = (int)(((125.0 * fTime) - (*i).vy) * fTime) + (*i).y;
+					/* 初速度(vx,vy)、加速度下に2*125.0で位置計算 */
 				}
-				DrawCircle(posX, Y_CIRCLE + posY + dy, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
-				DrawCircle(posX, Y_CIRCLE + posY + dy, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
+				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
 #if 0
-				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, GetColor(255, 255, 255), TRUE);	/* 流れる円 */
 #define R_CIRCLE2 (R_CIRCLE - 4)
+				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, GetColor(255, 255, 255), TRUE);	/* 流れる円 */
 				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE2 - 1, Color, TRUE);	/* 流れる円 */
 #endif
 				SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
@@ -2784,8 +2872,8 @@ public:
 	void readRanking();
 	
 	void draw(int y, int brightness);
-	void drawComment(int y);
-	void drawRanking(int y, int rankBegin, int rankLen);
+	void drawComment(int x, int y);
+	void drawRanking(int x, int y, int rankBegin, int rankLen);
 	
 	bool titleCmp(char *buf);
 	//void renewFont();
@@ -2930,15 +3018,15 @@ void CMusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 	DrawStringToHandle(X_TITLE, y + Y_TITLE, m_title, color, m_fontHandleTitle);
 }
 
-void CMusicInfo::drawComment(int y){
+void CMusicInfo::drawComment(int x, int y){
 	for(int i = 0; i < COMMENT_N_LINES; i++){
-		DrawStringToHandle(30, y+2 +20* i, m_comment[i], GetColor(255, 255, 255), m_fontHandleNormal);
+		DrawStringToHandle(30+x, y+2 +20* i, m_comment[i], GetColor(255, 255, 255), m_fontHandleNormal);
 	}
 }
 
 
-void CMusicInfo::drawRanking(int y, int rankBegin, int rankLen){
-	m_ranking.draw(y, rankBegin, rankLen, m_fontHandleRanking);
+void CMusicInfo::drawRanking(int x, int y, int rankBegin, int rankLen){
+	m_ranking.draw(x, y, rankBegin, rankLen, m_fontHandleRanking);
 }
 /*
 void CMusicInfo::renewFont(){
@@ -2989,43 +3077,213 @@ vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
 
 /* ============================================================ */
 
+struct DrawMainInfo{
+public:
+	int rankingPos;
+	int rankingFlag;	/* true:詳細ランキング、false:1位のみまたは、コメント表示 */
+	int drawPosX;
+	double drawPosY;
+	int *addHeight;
+private:
+	int _addHeight[21];
+	int addHeightWait;	/* 0から0以外になる時に待つ。それを数える */
+public:
+	DrawMainInfo();
+	void reset();
+	void step();
+	void next();
+	void prev();
+	void left();
+	void right();
+};
+
+DrawMainInfo::DrawMainInfo(){
+	addHeight = _addHeight + 10;
+	reset();
+}
+
+void DrawMainInfo::reset(){
+	rankingPos = 0;
+	rankingFlag = false;
+	drawPosX = 0;
+	drawPosY = 0.0;
+	for(int i=-10; i<=10; i++){
+		addHeight[i] = 0;
+	}
+	addHeightWait = 0;
+}
+
+void DrawMainInfo::step(){
+	for(int i=-10; i<=10; i++){
+		int h = 0;	/* 本来の幅 */
+		if(i==0){
+			if(rankingFlag){
+				h = H_RANKING;
+			}else if(rankingPos == 0){
+				h = H_RANKING1;
+			}else{
+				h = H_COMMENT;
+			}
+			if(addHeight[0] == 0 && addHeightWait < 25){
+			/* 幅0から開こうとしていて、それに必要な時間経過していない */
+				addHeightWait++;
+				continue;
+			}
+		}
+		addHeight[i] = h + (int)((addHeight[i] - h) * 0.80);
+#if 0
+		if(addHeight[i]<h){	/* ランキング幅を広げるとき */
+			addHeight[i] += 4;
+			if(addHeight[i] > h){
+				addHeight[i] = h;
+			}
+		}else{	/* ランキング幅を狭めるとき */
+			addHeight[i] -= 4;
+			if(addHeight[i] < 0){
+				addHeight[i] = 0;
+			}
+		}
+#endif
+	}
+	{
+		drawPosX *= 0.70;
+	}
+	{
+		int sign = drawPosY==0 ? 0 : drawPosY>0 ? 1 : -1;
+		double tmp = -0.05 * drawPosY;	/* drawPosYを補正する量 */
+		tmp -= sign * 1.0;
+		tmp -= sign * 0.0010 * drawPosY * drawPosY;
+		drawPosY += tmp;
+		if(drawPosY * tmp > 0.0){	/* 0を通り過ぎた */
+			drawPosY = 0.0;
+		}
+	}
+}
+
+void DrawMainInfo::next(){
+	drawPosY += MUSIC_INFO_HEIGHT + (addHeight[0] + addHeight[1]) / 2.0;
+	for(int i=-10; i<10; i++){
+		addHeight[i] = addHeight[i+1];
+	}
+	addHeight[10] = 0;
+	
+	addHeightWait = 0;
+	
+	rankingPos = 0;
+	rankingFlag = false;
+}
+
+void DrawMainInfo::prev(){
+	drawPosY -= MUSIC_INFO_HEIGHT + (addHeight[0] + addHeight[-1]) / 2.0;
+	for(int i=10; i>-10; i--){
+		addHeight[i] = addHeight[i-1];
+	}
+	addHeight[-10] = 0;
+	
+	addHeightWait = 0;
+	
+	rankingPos = 0;
+	rankingFlag = false;
+}
+
+void DrawMainInfo::left(){
+	if(rankingPos < 0){	/* コメント表示の前へは行けない */
+		return;
+	}
+	if(rankingPos == 0 && rankingFlag){	/* 1位のみ←1～RANKING_DRAW_LEN位のとき */
+		rankingFlag = false;
+	}else{	/* その他の時 */
+		rankingPos -= RANKING_DRAW_LEN;
+		drawPosX -= W_WINDOW;
+	}
+}
+
+void DrawMainInfo::right(){
+	if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
+		return;
+	}
+	if(rankingPos == 0 && !rankingFlag){	/* 1位のみ→1～RANKING_DRAW_LEN位のとき */
+		rankingFlag = true;
+	}else{	/* その他の時 */
+		rankingPos += RANKING_DRAW_LEN;
+		drawPosX += W_WINDOW;
+	}
+}
+
+/* ============================================================ */
+
+/* rankingPos位からのランキング（負の時コメント）を(x,y)から描画。高さはhに制限 */
+void drawMainRanking(vector<CMusicInfo>::iterator itr, int rankingPos,
+		int x, int y, int h){
+	int yMin = y, yMax =y+h;
+	if(yMin < 0){
+		yMin = 0;
+	}
+	if(yMax > 360){
+		yMax = 360;
+	}
+	SetDrawArea(10, yMin, W_WINDOW-10, yMax);
+	if(rankingPos >= 0){
+		/* ランキング表示（rankingPosからRANKING_DRAW_LEN個） */
+		/* 1位しか表示しない時も隠れるので問題なし */
+		(*itr).drawRanking(x, y + 6, rankingPos, RANKING_DRAW_LEN);	/* 6==(60-48)/2 */
+	}else{
+		/* コメント表示 */
+		(*itr).drawComment(x, y + 6);
+	}
+}
+
 /* メイン画面（曲選択画面）を描く */
-void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
-		double drawPosY, CChallenge &challenge, int inputHandle, int fontHandleDefault){
-	if(rankingPos == -RANKING_DRAW_LEN){
-		int dy = (int)floor(drawPosY + 0.5);
-		SetDrawArea(0, 0, W_WINDOW, 360);	/* 描画範囲を制限 */
-		DrawBox(10, 120 + dy, W_WINDOW - 10, 240 + dy, GetColor(32, 32, 64), TRUE);
-		DrawLine(40, 180 + dy, W_WINDOW - 40, 180 + dy, GetColor(64, 64, 64));
-		(*infoArrayItr).draw(120 + dy, 255);	/* タイトルなど表示 */
-		/* ランキング表示（1位のみ） */
-		(*infoArrayItr).drawRanking(180 + dy + (60-48)/2, 0, 1);
-		/* タイトルなど表示、水平線で区切る */
-		{	/* 前の曲 */
-			vector<CMusicInfo>::iterator itr = infoArrayItr;
-			int y = 120 + dy;
-			int cnt = 2;	/* 明るさに使うので、初期値にあまり意味はない */
-			while(y >= 0){	/* 枠内の間 */
-				DrawLine(10, y, W_WINDOW - 10, y, GetColor(255/cnt, 255/cnt, 255/cnt));
-				itr = prevInfo(itr);
-				y -= 60;
-				(*itr).draw(y, 255/cnt);
-				cnt++;
-			}
+void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
+		DrawMainInfo &dInfo, CChallenge &challenge, int inputHandle, int fontHandleDefault){
+	//if(dInfo.rankingPos == -RANKING_DRAW_LEN){
+	int dy = 180 + (MUSIC_INFO_HEIGHT - dInfo.addHeight[0])/2
+		+ (int)floor(dInfo.drawPosY + 0.5);
+	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* 描画範囲を制限 */
+	{
+		DrawBox(10, dy - MUSIC_INFO_HEIGHT, W_WINDOW - 10, dy + dInfo.addHeight[0], GetColor(32, 32, 64), TRUE);
+		(*infoArrayItr).draw(dy - MUSIC_INFO_HEIGHT, 255);	/* タイトルなど表示 */
+		DrawLine(40, dy, W_WINDOW - 40, dy, GetColor(64, 64, 64));
+		
+		drawMainRanking(infoArrayItr, dInfo.rankingPos, dInfo.drawPosX, dy, dInfo.addHeight[0]);
+		if(dInfo.drawPosX < 0){	/* 右のを描く */
+			drawMainRanking(infoArrayItr, dInfo.rankingPos + RANKING_DRAW_LEN,
+				dInfo.drawPosX + W_WINDOW, dy, dInfo.addHeight[0]);
+		}else if(dInfo.drawPosX > 0){	/* 左のを描く */
+			drawMainRanking(infoArrayItr, dInfo.rankingPos - RANKING_DRAW_LEN,
+				dInfo.drawPosX - W_WINDOW, dy, dInfo.addHeight[0]);
 		}
-		{	/* 後の曲 */
-			vector<CMusicInfo>::iterator itr = infoArrayItr;
-			int y = 240 + dy;
-			int cnt = 2;	/* 明るさに使うので、初期値にあまり意味はない */
-			while(y < 360){	/* 枠内の間 */
-				DrawLine(10, y, W_WINDOW - 10, y, GetColor(255/cnt, 255/cnt, 255/cnt));
-				itr = nextInfo(itr);
-				(*itr).draw(y, 255/cnt);
-				y += 60;
-				cnt++;
-			}
+	}
+	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* 描画範囲を制限 */
+	/* タイトルなど表示、水平線で区切る */
+	{	/* 前の曲 */
+		vector<CMusicInfo>::iterator itr = infoArrayItr;
+		int y = dy - MUSIC_INFO_HEIGHT;
+		int cnt = 0;
+		while(y >= 0){	/* 枠内の間 */
+			DrawLine(10, y, W_WINDOW - 10, y,
+				GetColor(255/(cnt+2), 255/(cnt+2), 255/(cnt+2)));
+			itr = prevInfo(itr);
+			cnt++;
+			y -= MUSIC_INFO_HEIGHT + dInfo.addHeight[-cnt];
+			(*itr).draw(y, 255/(cnt+1));
 		}
-		SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
+	}
+	{	/* 後の曲 */
+		vector<CMusicInfo>::iterator itr = infoArrayItr;
+		int y = dy + dInfo.addHeight[0];
+		int cnt = 0;
+		while(y <360){	/* 枠内の間 */
+			DrawLine(10, y, W_WINDOW - 10, y,
+				GetColor(255/(cnt+2), 255/(cnt+2), 255/(cnt+2)));
+			itr = nextInfo(itr);
+			cnt++;
+			(*itr).draw(y, 255/(cnt+1));
+			y += MUSIC_INFO_HEIGHT + dInfo.addHeight[cnt];
+		}
+	}
+	SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
+#if 0
 	}else{
 		DrawBox(10, 10, W_WINDOW - 10, 350, GetColor(32, 32, 64), TRUE);
 		
@@ -3039,13 +3297,14 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr, int rankingPos,
 		/* 水平線で区切る */
 		DrawLine(40, 90, W_WINDOW - 40, 90, GetColor(64, 64, 64));
 		
-		if(rankingPos >= 0){
+		if(dInfo.rankingPos >= 0){
 			/* ランキング表示（rankingPosからRANKING_DRAW_LEN個） */
-			(*infoArrayItr).drawRanking(90 + 10, rankingPos, RANKING_DRAW_LEN);
+			(*infoArrayItr).drawRanking(90 + 10, dInfo.rankingPos, RANKING_DRAW_LEN);
 		}else{
 			(*infoArrayItr).drawComment(90 + 10);
 		}
 	}
+#endif
 	DrawBox(0, 360, W_WINDOW, H_WINDOW - 25, GetColor(32, 32, 32), TRUE);
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	DrawLine(0, H_WINDOW - 25, W_WINDOW, H_WINDOW - 25, GetColor(170, 170, 170));
@@ -3234,7 +3493,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 	
 	bool retValue;	/* 画面モードを変えて続ける場合true */
 	
-	double drawPosY = 0.0;	/* 曲選択の時の、表示のずれ */
+	DrawMainInfo dInfo;
 	
 	CChallenge challenge;
 	
@@ -3251,7 +3510,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 	);
 	
 	vector<CMusicInfo>::iterator infoArrayItr = g_infoArray.begin();
-	int rankingPos = -RANKING_DRAW_LEN;
+	//int rankingPos = -RANKING_DRAW_LEN;
 	/* -RANKING_DRAW_LENなら、1位のみ表示。こうしておくと、RANKING_DRAW_LEN位ずつ表示するときと都合が良い。 */
 	/* -2*RANKING_DRAW_LENならコメント表示 */
 	
@@ -3264,19 +3523,9 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 		}
 		
 		//ClearDrawScreen();
-		drawMain(infoArrayItr, rankingPos, drawPosY, challenge, inputHandle, fontHandleDefault);
+		drawMain(infoArrayItr, dInfo, challenge, inputHandle, fontHandleDefault);
+		dInfo.step();
 		myScreenFlip();
-		
-		{
-			int sign = drawPosY==0 ? 0 : drawPosY>0 ? 1 : -1;
-			double tmp = -0.1 * drawPosY;	/* drawPosYを補正する量 */
-			tmp -= sign * 0.05;
-			tmp -= sign * 0.0010 * drawPosY * drawPosY;
-			drawPosY += tmp;
-			if(drawPosY * tmp > 0.0){	/* 0を通り過ぎた */
-				drawPosY = 0.0;
-			}
-		}
 		
 		if(inputHandle == -1){	/* 検索文字列を入力中ではない */
 			char ch = GetKeyboardInput();
@@ -3299,10 +3548,9 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 				typing.mainLoop();	/* 描画とかをCTypingに任せる */
 				typing.unload();	/* 終了処理 */
 				
-				rankingPos = -RANKING_DRAW_LEN;
+				dInfo.reset();
 				/* 戻ってきたときに、詳細ランキングから抜ける */
 				/* （なんとなく、1位にランクインしたのにほかのところが表示されてたら悲しい） */
-				drawPosY = 0.0;
 				
 				(*infoArrayItr).readRanking();	/* ランキングは更新されているかもしれない */
 				break;
@@ -3336,32 +3584,18 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 				SetActiveKeyInput(inputHandle);
 				break;
 			case CTRL_CODE_UP:	/* 前の曲へ */
-				rankingPos = -RANKING_DRAW_LEN;
 				infoArrayItr = prevInfo(infoArrayItr);
-				drawPosY -= 60.0;
+				dInfo.prev();
 				break;
 			case CTRL_CODE_DOWN:	/* 後の曲へ */
-				rankingPos = -RANKING_DRAW_LEN;
 				infoArrayItr = nextInfo(infoArrayItr);
-				drawPosY += 60.0;
+				dInfo.next();
 				break;
 			case CTRL_CODE_LEFT:	/* 上位を表示 */
-				if(rankingPos < -RANKING_DRAW_LEN){	/* コメント表示の前へは行けない */
-					break;
-				}
-				rankingPos -= RANKING_DRAW_LEN;
-				if(rankingPos != -RANKING_DRAW_LEN){
-					drawPosY = 0.0;
-				}
+				dInfo.left();
 				break;
 			case CTRL_CODE_RIGHT:	/* 下位を表示 */
-				if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
-					break;
-				}
-				rankingPos += RANKING_DRAW_LEN;
-				if(rankingPos != -RANKING_DRAW_LEN){
-					drawPosY = 0.0;
-				}
+				dInfo.right();
 				break;
 			default:
 				editChallenge(challenge, ch);
@@ -3381,9 +3615,7 @@ bool main2(bool &isWindowMode){	/* falseを返せば、終了、trueを返せば、isWindowMo
 					do{
 						infoArrayItr = nextInfo(infoArrayItr);
 						if(infoArrayItr->titleCmp(buf)){
-							rankingPos = -RANKING_DRAW_LEN;
-							/* 詳細ランキングから抜ける */
-							drawPosY = 0.0;
+							dInfo.reset();
 							/* 検索したものは最初から中心に表示 */
 							break;
 						}
