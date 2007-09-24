@@ -1,6 +1,12 @@
 #ifndef __UTYPING_CONFIG
 #define __UTYPING_CONFIG
 
+enum{
+CONFIG_NEVER,
+CONFIG_QUERY,
+CONFIG_ALWAYS,
+};
+
 #include <stdio.h>
 #include <string.h>
 
@@ -17,11 +23,16 @@ public:
 	char defaultReplayFile[256];
 	int overwriteReplay;
 	
+	bool f_rankingCheckDate;
+	bool f_rankingCheckChallenge;
+	
 	bool f_fullScreen;
 	bool f_showFPS;
 	bool f_waitVSync;
 	
 	bool f_debugMode;
+	bool f_debugBeat;	/* false 普通に debug / true BEATLINE を音符にする */
+	int debugTime;	/* デバッグ開始位置（ミリ秒） */
 	
 	bool f_showProcessTime;
 };
@@ -37,14 +48,19 @@ void UTypingConfig::init(){
 	loadSoundType = DX_SOUNDDATATYPE_MEMPRESS;
 	volume = -1;
 	
-	strcpy(defaultReplayFile, "replay.dat");
+	strcpy(defaultReplayFile, "default.rep");
 	overwriteReplay = CONFIG_QUERY;
+	
+	f_rankingCheckDate = false;
+	f_rankingCheckChallenge = true;
 	
 	f_fullScreen = false;
 	f_showFPS = false;
 	f_waitVSync = true;
 	
 	f_debugMode = false;
+	f_debugBeat = false;
+	debugTime = 0;
 	
 	f_showProcessTime = false;
 }
@@ -95,7 +111,7 @@ void UTypingConfig::read(){
 				int tmp;
 				tmp = sscanf(ptr2, "%d", &n);
 				if(tmp < 1 || n < 0 || n > 255){
-					throw "[config] Volume は default または 0 以上 255 以下 で指定しなければならない。（デフォルト: 255 ）";
+					throw "[config] Volume は default または 0 以上 255 以下 で指定しなければならない。（デフォルト: default ）";
 				}
 				volume = n;
 			}
@@ -112,6 +128,22 @@ void UTypingConfig::read(){
 				overwriteReplay = CONFIG_ALWAYS;
 			}else{
 				throw "[config] OverwriteReplay は never, query または always で指定しなければならない。（デフォルト: query ）";
+			}
+		}else if(!strcmp(ptr1, "RankingCheckDate")){
+			if(!strcmp(ptr2, "true")){
+				f_rankingCheckDate = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_rankingCheckDate = false;
+			}else{
+				throw "[config] RankingCheckDate は true または false で指定しなければならない。（デフォルト: false ）";
+			}
+		}else if(!strcmp(ptr1, "RankingCheckChallenge")){
+			if(!strcmp(ptr2, "true")){
+				f_rankingCheckChallenge = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_rankingCheckChallenge = false;
+			}else{
+				throw "[config] RankingCheckChallenge は true または false で指定しなければならない。（デフォルト: true ）";
 			}
 		}else if(!strcmp(ptr1, "FullScreen")){
 			if(!strcmp(ptr2, "true")){
@@ -140,11 +172,23 @@ void UTypingConfig::read(){
 		}else if(!strcmp(ptr1, "DebugMode")){
 			if(!strcmp(ptr2, "true")){
 				f_debugMode = true;
+				f_debugBeat = false;
+			}else if(!strcmp(ptr2, "beat")){
+				f_debugMode = true;
+				f_debugBeat = true;
 			}else if(!strcmp(ptr2, "false")){
 				f_debugMode = false;
 			}else{
-				throw "[config] DebugMode は true または false で指定しなければならない。（デフォルト: false ）";
+				throw "[config] DebugMode は true または beat または false で指定しなければならない。（デフォルト: false ）";
 			}
+		}else if(!strcmp(ptr1, "DebugTime")){
+			int n;
+			int tmp;
+			tmp = sscanf(ptr2, "%d", &n);
+			if(tmp < 1 || n < 0){
+				throw "[config] DebugTime は 0 以上 で指定しなければならない。（デフォルト: 0 ）";
+			}
+			debugTime = n;
 		}else if(!strcmp(ptr1, "ShowProcessTime")){
 			if(!strcmp(ptr2, "true")){
 				f_showProcessTime = true;
