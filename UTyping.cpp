@@ -11,20 +11,20 @@
 
 using namespace std;
 
+/* ============================================================ */
+
+/* G‘½‚ÈŠÖ” */
+#include "ututil.h"
+
+/* ============================================================ */
+
 #include "utuid.h"
 
-/*
-ƒfƒoƒbƒO‚Ì‚½‚ß‚É‘¶İ‚·‚é‚à‚Ì
-class CCheck
+/* ============================================================ */
 
-CCheck g_class
-*/
+#include "utchallenge.h"
 
-/*
-#define chkI double txxx,tyyy;
-#define chkB txxx=myGetNowHiPerformanceCount();
-#define chkE tyyy=myGetNowHiPerformanceCount(); {int t=(int)(tyyy-txxx); if(t>=10)printfDx((t>=16384)?"--------%5d--------\n":"%5d\n", t);}
-*/
+/* ============================================================ */
 
 #define COLOR_EXCELLENT GetColor(255, 255, 0)
 #define COLOR_GOOD GetColor(0, 255, 0)
@@ -52,26 +52,16 @@ CCheck g_class
 #define SCORE_TYPING 500
 /* ƒ^ƒCƒsƒ“ƒO‚Å1•¶šŠm’è‚³‚¹‚é‚²‚Æ‚Éi1ƒoƒCƒg•¶šA2ƒoƒCƒg•¶š‚ğ–â‚í‚È‚¢j */
 
-#define TYPE_BUFFER_LEN 8
+#define NAME_LEN 16
+#define TYPE_BUFFER_LEN NAME_LEN
 /* ƒ^ƒCƒsƒ“ƒO‚É—p‚¢‚éƒoƒbƒtƒ@‚Ì’·‚³ */
-/* –¼‘O‚ÌÅ‘å’·‚É‚à‰e‹¿‚·‚é */
+/* –¼‘O‚ÌÅ‘å’·‚É“™‚µ‚¢ */
 
-#define RANKING_LEN 20
-/* ƒ‰ƒ“ƒLƒ“ƒO‚É‹L˜^‚·‚é‡ˆÊ‚ª‰½ˆÊ‚Ü‚Å‚© */
-
-#define RANKING_DRAW_LEN 5
-/* ‰½ˆÊ‚¸‚Âƒ‰ƒ“ƒLƒ“ƒO‚ğ•\¦‚·‚é‚© */
-/* RANKING_LEN ‚Ì–ñ”‚¾‚Æ•\¦‚É–³‘Ê‚ª‚È‚¢ */
-
-#define H_RANKING1 60
-/* 1ˆÊ‚Ì‚İ‚ğ•`‰æ‚·‚é‚Æ‚«‚Ì• */
-
-#define H_RANKING 252
-/* RANKING_LEN ˆÊ•ª‚ğ•`‰æ‚·‚é‚Æ‚«‚Ì• */
 #define H_COMMENT H_RANKING
+/* ƒRƒƒ“ƒg‚Ì•i‚‚³j‚ÍRANKING_LEN ˆÊ•ª‚ğ•`‰æ‚·‚é‚Æ‚«‚Æ“¯‚¶ */
 
 #define MUSIC_INFO_HEIGHT 60
-/* ‹Èî•ñ‚Ì• */
+/* ‹Èî•ñ‚Ì•i‚‚³j */
 
 /* ============================================================ */
 
@@ -80,8 +70,17 @@ CCheck g_class
 #define CIRCLE_SPEED 250.0
 /* —¬‚ê‚é‰~‚Ì•W€‚Ì‘¬‚³iƒhƒbƒg/•bj */
 
+#define X_SCORE (W_WINDOW - 25)
+#define Y_SCORE 70
+
+#define X_GAUGE (W_WINDOW - 10)
+#define W_GAUGE 400
+#define Y_GAUGE 10
+#define H_GAUGE 40
+
+#define X_INFO 160
 #define Y_INFO 10
-#define Y_INFO2 40
+//#define Y_INFO2 40
 
 #define X_CIRCLE 100
 #define Y_CIRCLE 180
@@ -108,11 +107,6 @@ CCheck g_class
 
 #define X_BUFFER (X_CIRCLE - R_CIRCLE)
 #define Y_BUFFER 390
-
-#define X_GAUGE (W_WINDOW - 10)
-#define W_GAUGE 400
-#define Y_GAUGE 10
-#define H_GAUGE 40
 
 #define X_HIDDEN (X_CIRCLE + R_CIRCLE + 60)
 /* Hidden‚ÅŒ©‚¦‚é¶‚ÌŒÀŠE */
@@ -151,193 +145,10 @@ BEATLINE_BAR,
 BEATLINE_BEAT,
 };
 
-enum{
-CHALLENGE_HIDDEN,	/* ‰B‚ê‚é‚Ì */
-CHALLENGE_SUDDEN,	/* “Ë‘RŒ»‚ê‚é‚Ì */
-CHALLENGE_STEALTH,	/* Œ©‚¦‚È‚¢‚Ì */
-CHALLENGE_LYRICS_STEALTH,	/* ‰ÌŒ‚ªŒ©‚¦‚È‚¢‚Ì */
-CHALLENGE_SIN,
-CHALLENGE_COS,
-CHALLENGE_TAN,
-
-CHALLENGE_NUM
-};
-
-enum{
-CONFIG_NEVER,
-CONFIG_QUERY,
-CONFIG_ALWAYS,
-};
-
 /* ============================================================ */
 /* ƒOƒ[ƒoƒ‹•Ï”‚Æ‚© */
 
 int g_fontHandleDebug;
-
-/* ============================================================ */
-
-/* G‘½‚ÈŠÖ”i—\’èj */
-
-bool readInt(int &n, FILE *fp);
-void writeInt(int n, FILE *fp);
-bool readChar8(char *str, FILE *fp);
-void writeChar8(char *str, FILE *fp);
-
-void getDirFromPath(char *directoryName, const char *fileName);
-
-//char *fgetline(char buf[], FILE *fp);
-
-void getOrdinal(char *buf, int n);
-/* ˜”‚ğæ“¾ */
-
-void getDateStr(char *buf);
-/* “ú•t‚Æ‚ğbuf‚ÉŠi”[ */
-
-void outputError(char *str);
-/* ƒGƒ‰[o—Í */
-
-bool readInt(int &n, FILE *fp){
-	int b[4];
-	for(int i=0; i<4; i++){
-		b[i] = getc(fp);
-		if(b[i] == EOF){
-			return false;
-		}
-	}
-	n = b[0] | b[1]<<8 | b[2]<<16 | b[3]<<24;
-	return true;
-}
-
-void writeInt(int n, FILE *fp){
-	int b[4];
-	for(int i=0; i<4; i++){
-		b[i] = n >> (8*i);
-	}
-	for(int i=0; i<4; i++){
-		putc(b[i], fp);
-	}
-	return;
-}
-
-bool readChar8(char *str, FILE *fp){
-	int b[8];
-	for(int i=0; i<8; i++){
-		b[i] = getc(fp);
-		if(b[i] == EOF){
-			return false;
-		}
-	}
-	for(int i=0; i<8; i++){
-		str[i] = b[i];
-	}
-	str[8] = '\0';
-	return true;
-}
-
-void writeChar8(char *str, FILE *fp){
-	int b[8];
-	for(int i=0; i<8; i++){
-		b[i] = str[i];
-	}
-	for(int i=1; i<8; i++){
-		if(b[i-1] == '\0'){
-			b[i] = '\0';
-		}
-	}
-	for(int i=0; i<8; i++){
-		putc(b[i], fp);
-	}
-	return;
-}
-
-void getDirFromPath(char *directoryName, const char *fileName){
-	strcpy(directoryName, fileName);
-	for(int i = strlen(directoryName) - 1; i >= 0; i--){	/* Œã‚ë‚©‚ç‚½‚Ç‚é */
-		if(directoryName[i] == '/' || directoryName[i] == '\\'){	/* '/'‚â'\'‚ªŒ»‚ê‚½‚ç */
-			directoryName[i + 1] = '\0';	/* ‚»‚±‚Ü‚Å‚È‚Ì‚ÅAŸ‚ğ'\0'‚É */
-			return;
-		}
-	}
-	/* ÅŒã‚Ü‚ÅŒ»‚ê‚È‚©‚Á‚½‚ç */
-	directoryName[0] = '\0';
-	return;
-}
-
-#define fgetline(buf, fp) fgetline_1(buf, sizeof(buf), fp)
-/* fp‚©‚ç1s“Ç‚ŞB‚½‚¾‚µAÅŒã‚Ì'\n'‚Ííœ */
-
-char *fgetline_1(char *buf, size_t size, FILE *fp){
-	if(fgets(buf, size, fp) == NULL){
-		return NULL;
-	}
-	int len = strlen(buf) - 1;
-	if(buf[len] == '\n'){
-		buf[len] = '\0';
-	}
-	return buf; 
-}
-
-void getOrdinal(char *buf, int n){
-	switch(n % 10){	/* 1‚ÌˆÊ‚Å”»’è */
-	case 1:
-		sprintf(buf, "%2dst", n);
-		break;
-	case 2:
-		sprintf(buf, "%2dnd", n);
-		break;
-	case 3:
-		sprintf(buf, "%2drd", n);
-		break;
-	default:
-		sprintf(buf, "%2dth", n);
-		break;
-	}
-	if((n / 10) % 10 == 1){	/* ‰º“ñŒ…11,12,13‚ğth‚É‚·‚é */
-		sprintf(buf, "%2dth", n);
-	}
-}
-
-void getDateStr(char *buf){
-	DATEDATA date;
-	GetDateTime(&date);
-	sprintf(buf, "%d/%02d/%02d %02d:%02d:%02d", date.Year, date.Mon,
-		date.Day, date.Hour, date.Min, date.Sec);
-}
-
-void outputError(char *str){
-	char buf[256];
-	getDateStr(buf);
-	FILE *fp;
-	fp = fopen("ƒGƒ‰[ƒƒO.txt","a");
-	fprintf(fp, "[%s] %s\n", buf, str);
-	fclose(fp);
-}
-
-/* ------------------------------------------------------------ */
-#if 0
-HANDLE newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter);
-void deleteThread(HANDLE handle);
-
-//#ifdef UTYPING_USE_MULTI_THREAD
-
-/* DWORD WINAPI (*func)(LPVOID)‚ğV‚µ‚¢ƒXƒŒƒbƒh‚Æ‚µ‚Äì‚é */
-HANDLE newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter){
-	DWORD dwID;
-	return CreateThread(NULL,0,lpStartAddress,lpParameter,0,&dwID);
-}
-
-void deleteThread(HANDLE handle){
-	WaitForSingleObject(handle, INFINITE);	/* 3000‚®‚ç‚¢‚É‚µ‚Ä‚¨‚¢‚½•û‚ª‚¢‚¢‚©‚à‚µ‚ê‚È‚¢ */
-	/*
-	if(!TerminateThread(handle, 0)){
-		throw __LINE__;
-	}
-	*/
-	CloseHandle(handle);
-}
-
-//#endif
-#endif
 
 /* ============================================================ */
 
@@ -467,7 +278,7 @@ bool checkUTypingUserID(){
 
 /* ƒL[“ü—Í‚Åƒoƒbƒtƒ@‚ğ‘€ì‚·‚é */
 
-#define editBuffer(ch, buf, len) editBuffer_1(ch, buf, len, sizeof(buf));
+#define editBuffer(ch, buf, len) editBuffer_1(ch, buf, len, sizeof(buf))
 
 int editBuffer_1(char ch, char *buf, int &len, int bufSize){
 	if(ch < CTRL_CODE_CMP){	/* •¶šƒR[ƒh‚Å‚È‚¢‚Æ‚« */
@@ -528,263 +339,8 @@ char GetKeyboardInput(double &timeCount){
 
 /* ============================================================ */
 
-class CScore{
-public:
-	CScore();
-	CScore(const char *n,int s,int sa,int st,int ce,int cg,int cf,int cp,int cx,int ca,int cm);
-	void read(FILE *fp);
-	void write(FILE *fp);
-	
-	void draw(int x, int y, int n, int fontHandle);
-	
-	bool nameCmp(CScore &score);
-	
-	bool operator ==(CScore &score){
-		return m_score == score.m_score;
-	}
-	bool operator !=(CScore &score){
-		return m_score != score.m_score;
-	}
-	bool operator <(CScore &score){
-		return m_score < score.m_score;
-	}
-	bool operator <=(CScore &score){
-		return m_score <= score.m_score;
-	}
-	bool operator >(CScore &score){
-		return m_score > score.m_score;
-	}
-	bool operator >=(CScore &score){
-		return m_score >= score.m_score;
-	}
-private:
-	char m_name[TYPE_BUFFER_LEN + 1];
-	int m_score;
-	int m_scoreAccuracy, m_scoreTyping;
-	int m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass, m_countAll;
-	int m_comboMax;
-};
-
-CScore::CScore(){
-	strcpy(m_name, "_");
-	m_score = 0;
-	m_scoreAccuracy = 0;
-	m_scoreTyping = 0;
-	m_countExcellent = 0;
-	m_countGood = 0;
-	m_countFair = 0;
-	m_countPoor = 0;
-	m_countPass = 0;
-	m_countAll = 0;
-	m_comboMax = 0;
-}
-
-CScore::CScore(const char *n,int s,int sa,int st,int ce,int cg,int cf,int cp,int cx,int ca,int cm){
-	strcpy(m_name, n);
-	m_score = s;
-	m_scoreAccuracy = sa;
-	m_scoreTyping = st;
-	m_countExcellent = ce;
-	m_countGood = cg;
-	m_countFair = cf;
-	m_countPoor = cp;
-	m_countPass = cx;
-	m_countAll = ca;
-	m_comboMax = cm;
-}
-
-void CScore::read(FILE *fp){
-	strcpy(m_name, "_");
-	m_score = 0;
-	m_scoreAccuracy = 0;
-	m_scoreTyping = 0;
-	m_countExcellent = 0;
-	m_countGood = 0;
-	m_countFair = 0;
-	m_countPoor = 0;
-	m_countPass = 0;
-	m_countAll = 0;
-	m_comboMax = 0;
-	readChar8(m_name, fp);
-	readInt(m_score, fp);
-	readInt(m_scoreAccuracy, fp);
-	readInt(m_scoreTyping, fp);
-	readInt(m_countExcellent, fp);
-	readInt(m_countGood, fp);
-	readInt(m_countFair, fp);
-	readInt(m_countPoor, fp);
-	readInt(m_countPass, fp);
-	readInt(m_countAll, fp);
-	readInt(m_comboMax, fp);
-/*
-	fscanf(fp, "%s%d%d%d%d%d%d%d%d%d%d", m_name, &m_score, &m_scoreAccuracy, &m_scoreTyping,
-		&m_countExcellent, &m_countGood, &m_countFair, &m_countPoor, &m_countPass,
-		&m_countAll, &m_comboMax);
-*/
-}
-
-void CScore::write(FILE *fp){
-/*
-	fprintf(fp, "%s %d %d %d %d %d %d %d %d %d %d\n", m_name, m_score, m_scoreAccuracy, m_scoreTyping,
-		m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
-		m_countAll, m_comboMax);
-*/
-	writeChar8(m_name, fp);
-	writeInt(m_score, fp);
-	writeInt(m_scoreAccuracy, fp);
-	writeInt(m_scoreTyping, fp);
-	writeInt(m_countExcellent, fp);
-	writeInt(m_countGood, fp);
-	writeInt(m_countFair, fp);
-	writeInt(m_countPoor, fp);
-	writeInt(m_countPass, fp);
-	writeInt(m_countAll, fp);
-	writeInt(m_comboMax, fp);
-}
-
-void CScore::draw(int x, int y, int n, int fontHandle){
-	char buf[256];
-	int color;
-	/*
-	switch(n){
-	case 1:
-		color = GetColor(230, 180, 34);
-		break;
-	case 2:
-		color = GetColor(175, 175, 176);
-		break;
-	case 3:
-		color = GetColor(149, 65, 28);
-		break;
-	default:
-		color = GetColor(128, 128, 128);
-		break;
-	}
-	*/
-	color = GetColor(255, 255, 255);
-	char buf2[256];
-	getOrdinal(buf2, n);	/* ‡ˆÊ‚ğ1st,2nd,3rd,...‚Å•\¦ */
-	int width;
-	sprintf(buf, "%s: %-8s %10d “_(%10d +%10d ), ", buf2,
-		m_name, m_score, m_scoreAccuracy, m_scoreTyping);
-	DrawStringToHandle(40 + x, y + 6, buf, color, fontHandle);
-	if(m_comboMax >= 0){
-		sprintf(buf, "Å‘å %4d ƒRƒ“ƒ{, (%4d/%4d/%4d/%4d/%4d)", m_comboMax,
-			m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass);
-	}else{	/* m_comboMax == -1 ‚Åƒtƒ‹ƒRƒ“ƒ{ˆµ‚¢ */
-		sprintf(buf, "ƒtƒ‹ƒRƒ“ƒ{, (%4d/%4d/%4d/%4d/%4d)",
-			m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass);
-	}
-	width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandle);
-	DrawStringToHandle((W_WINDOW - 40) - width + x, y + (48-6-16), buf, color, fontHandle);
-}
-
-bool CScore::nameCmp(CScore &score){
-	return strcmp(m_name, score.m_name) == 0;
-}
-
-
-/* ============================================================ */
-
-class CRanking{
-public:
-	CRanking();
-	~CRanking();
-	int update(CScore &score);
-	void open(const char *fileName);
-	void close();
-	void read();
-	void write();
-	
-	void draw(int x, int y, int rankBegin, int rankLen, int fontHandle);
-private:
-	FILE *m_fp;
-	CScore m_score[RANKING_LEN];
-};
-
-CRanking::CRanking(){
-	m_fp = NULL;	/* ‚Ü‚¾ƒtƒ@ƒCƒ‹‚ğŠJ‚¢‚Ä‚¢‚È‚¢ */
-}
-
-CRanking::~CRanking(){
-	close();
-}
-
-/* ƒ‰ƒ“ƒNƒCƒ“‚È‚ç‡ˆÊ(0`RANKING_LEN-1)‚ğ•Ô‚·B‚»‚¤‚Å‚È‚¯‚ê‚Î -1 ‚ğ•Ô‚· */
-int CRanking::update(CScore &score){
-	int lastRank = RANKING_LEN - 1;	/* ‚·‚Å‚É“ü‚Á‚Ä‚¢‚é‡ˆÊA“ü‚Á‚Ä‚¢‚È‚¢ê‡‚ÍARANKING_LEN - 1‚ª“s‡‚ª—Ç‚¢ */
-	/* ƒf[ƒ^‚ğ‚¸‚ç‚·‚Æ‚«‚ÉAƒ‰ƒ“ƒNŠO‚¾‚Á‚½‚Æ‚µ‚Ä‚àAÅŒã‚Ìƒ‰ƒ“ƒN‚¾‚Á‚½‚Æ‚µ‚Ä‚à“¯‚¶‚É‚È‚é‚©‚çB */
-	for(int i = 0; i < RANKING_LEN; i++){
-		if(score.nameCmp(m_score[i])){
-			lastRank = i;
-			break;
-		}
-	}
-	for(int i = 0; i < RANKING_LEN; i++){
-		if(score > m_score[i]){	/* iˆÊ‚ÌƒXƒRƒA‚æ‚è^‚É‘å‚«‚¢‚Ì‚ÅAiˆÊ‚Éƒ‰ƒ“ƒNƒCƒ“ */
-			if(i > lastRank){	/* ‚·‚Å‚É‚ ‚é©•ª‚ÌƒXƒRƒA‚æ‚èˆ«‚¢iu“¯‚¶v‚Æ‚«‚à‚±‚Ì”»’è‚É‚È‚éj */
-				return -1;
-			}
-			
-			/* iˆÊˆÈ~A‘O‚Ì©•ª‚Ìƒf[ƒ^ˆÈ‘O‚Ìƒf[ƒ^‚ğŒã‚ë‚É1‚Â‚¸‚Â‚¸‚ç‚· */
-			for(int j = lastRank; j > i; j--){
-				m_score[j] = m_score[j-1];
-			}
-			m_score[i] = score;
-			return i;
-		}
-	}
-	return -1;
-}
-
-void CRanking::open(const char *fileName){
-	if(m_fp != NULL){
-		close();
-	}
-	/* ƒoƒCƒiƒŠ‚ÅŠJ‚­‚Ì‚Å"b"‚ª“ü‚é */
-	m_fp = fopen(fileName, "r+b");	/* ‚ ‚ê‚Î‚»‚ê‚ğŠJ‚¢‚ÄA */
-	if(m_fp == NULL){
-		m_fp = fopen(fileName, "w+b");	/* ‚È‚¯‚ê‚Îì¬ */
-		if(m_fp == NULL){
-			throw __LINE__;
-		}
-	}
-}
-
-void CRanking::close(){
-	if(m_fp != NULL){
-		fclose(m_fp);
-		m_fp = NULL;
-	}
-}
-
-void CRanking::read(){
-	rewind(m_fp);
-	for(int i=0; i<RANKING_LEN; i++){
-		m_score[i].read(m_fp);
-	}
-	rewind(m_fp);
-	return;
-}
-
-void CRanking::write(){
-	rewind(m_fp);
-	for(int i=0; i<RANKING_LEN; i++){
-		m_score[i].write(m_fp);
-	}
-	rewind(m_fp);
-}
-
-/* rankBegin‚©‚çrankLenˆÊ•ª•\¦ */
-void CRanking::draw(int x, int y, int rankBegin, int rankLen, int fontHandle){
-	for(int i = 0; i < rankLen; i++){
-		int j = rankBegin + i;	/* ‘‚­‡ˆÊ */
-		if(j >= RANKING_LEN){	/* ‹L˜^‚³‚ê‚Ä‚¢‚éƒ‰ƒ“ƒLƒ“ƒO‚ÌŠO */
-			break;
-		}
-		m_score[j].draw(x, y + 48 * i, j + 1, fontHandle);	/* ÀÛ‚ÍA0”Ô–Ú‚Í1ˆÊ etc. */
-	}
-}
+#include "utscore.h"
+/* score,ranking */
 
 /* ============================================================ */
 
@@ -1051,111 +607,6 @@ struct BeatLine{
 
 /* ============================================================ */
 
-class CChallenge{
-public:
-	CChallenge();
-	
-	bool isEasy();
-	
-	void reset();
-	void set(int pos);
-	void reset(int pos);
-	void flip(int pos);
-	bool test(int pos);
-	
-	void speedUp();
-	void speedDown();
-	double speed();	/* —¬‚ê‚é‘¬‚³‚Ì•W€‚Æ‚Ì”ä‚ğ•Ô‚· */
-	
-	void keyUp();
-	void keyDown();
-	int key();
-	double frequencyRate();	/* ü”g”‚ª‰½”{‚³‚ê‚é‚© */
-private:
-	bitset<CHALLENGE_NUM> m_flags;
-	int m_speed;	/* ‰~‚ª—¬‚ê‚é‘¬‚³‚Ì•W€‚Æ‚Ì”ä‚Ì10”{(int‚Å‚à‚Â‚½‚ß) */
-	int m_key;
-};
-
-CChallenge::CChallenge(){
-	reset();
-}
-
-bool CChallenge::isEasy(){
-	if(m_key < 0){	/* Ä¶‘¬“x‚ğ’x‚­‚µ‚½ */
-		return true;
-	}
-	return false;
-}
-
-void CChallenge::reset(){
-	m_flags.reset();
-	m_speed = 10;
-	m_key = 0;
-}
-
-void CChallenge::set(int pos){
-	m_flags.set(pos);
-}
-
-void CChallenge::reset(int pos){
-	m_flags.reset(pos);
-}
-
-void CChallenge::flip(int pos){
-	m_flags.flip(pos);
-}
-
-bool CChallenge::test(int pos){
-	return m_flags.test(pos);
-}
-
-void CChallenge::speedUp(){
-	if(m_speed < 20){
-		m_speed++;
-	}else if(m_speed < 30){
-		m_speed += 2;
-	}else if(m_speed < 40){
-		m_speed += 5;
-	}
-}
-
-void CChallenge::speedDown(){
-	if(m_speed > 30){
-		m_speed -= 5;
-	}else if(m_speed > 20){
-		m_speed -= 2;
-	}else if(m_speed > 5){
-		m_speed--;
-	}
-}
-
-double CChallenge::speed(){
-	return m_speed / 10.0;
-}
-
-void CChallenge::keyUp(){
-	if(m_key < 12){
-		m_key++;
-	}
-}
-
-void CChallenge::keyDown(){
-	if(m_key > -12){
-		m_key--;
-	}
-}
-
-int CChallenge::key(){
-	return m_key;
-}
-
-double CChallenge::frequencyRate(){
-	return pow(2.0, m_key / 12.0);
-}
-
-/* ============================================================ */
-
 struct ReplayData{
 	char ch;
 	double time;
@@ -1167,10 +618,12 @@ class CTyping{
 public:
 	CTyping();
 	~CTyping();
-	// void loadDictionary(const char *fileName);
-	/* ƒ[ƒ}š«‘‚ÍƒRƒ“ƒXƒgƒ‰ƒNƒ^‚Å“Ç‚Ş */
+private:
+	void loadDictionary(const char *fileName);
+public:
 	void load(const char *fumenFileName, const char *rankingFileName);
 	void unload();
+	void setName(const char *name);
 	void setChallenge(CChallenge &challenge);
 private:
 	void keyboard(char ch, double timeCount);
@@ -1243,6 +696,8 @@ private:
 	
 	double m_timeBegin;
 	
+	char m_name[NAME_LEN + 1];	/* ƒvƒŒ[ƒ„[‚Ì–¼‘Oiİ’è‚³‚ê‚Ä‚¢‚½‚çj */
+	
 	int m_score;
 	int m_scoreTyping;	/* ƒ^ƒCƒsƒ“ƒO‚É‚æ‚é“¾“_ */
 	int m_scoreAccuracy;	/* ¸“x‚É‚æ‚é“¾“_ */
@@ -1263,13 +718,15 @@ private:
 	bool m_isReplay;
 	vector<ReplayData> m_replayData;
 	
+	int m_scoreDraw;	/* •\¦‚·‚éƒXƒRƒAi‚Ì1/10jA–{“–‚ÌƒXƒRƒA‚Æ”ä‚×’x‰„‚ª‚ ‚é */
+	
 	CEffect1 m_effect1;	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 	
 	double m_gauge[4];	/* ƒQ[ƒW‚ÌŒ»İ•`‚©‚ê‚é’·‚³ */
 	double m_gaugeRate;	/* ª‚Ì’·‚³1‚É‘Š“–‚·‚é‰æ–Êã‚Ì’·‚³ */
 	double m_gaugeLight[4];	/* ƒQ[ƒW‚Ì‚»‚ê‚¼‚ê‚ğÆ‚ç‚·Œõ‚Ì‹­‚³ */
 	
-	char m_text[256];
+	char m_text[256];	/* ”»’èi‚¨‚æ‚ÑƒRƒ“ƒ{”j‚ğ•\¦ */
 	int m_textColor;
 	double m_textTime;
 	
@@ -1286,27 +743,9 @@ private:
 };
 
 CTyping::CTyping(){
+	/* ƒ[ƒ}š«‘‚ÍƒRƒ“ƒXƒgƒ‰ƒNƒ^‚Å“Ç‚Ş */
 	if(!g_config.f_debugMode){	/* ’Êí‚Ì‚Æ‚« */
-		FILE *fp;
-		fp = fopen("convert.dat","r");
-		if(fp == NULL){
-			throw "convert.dat ‚ªŠJ‚¯‚Ü‚¹‚ñB";
-		}
-		char buf[256], buf1[256], buf2[256], buf3[256];
-		while(fgetline(buf, fp)!=NULL){
-			int n=sscanf(buf, "%s%s%s", buf1, buf2, buf3);
-			/* ƒ[ƒ}šA“ú–{ŒêAc‚éƒ[ƒ}š */
-			if(n<2){
-				throw "convert.dat ‚ÌŒ`®‚ª•s³‚Å‚·B";
-			}
-			int len;
-			if(n == 2){
-				strcpy(buf3, "");
-			}
-			m_trie.insert(buf2, CConvertData(buf1, buf3));
-			/* “ú–{Œê‚ğƒL[‚Éƒ[ƒ}š‚Ìƒf[ƒ^‚ğ“ü‚ê‚é */
-		}
-		fclose(fp);
+		loadDictionary("convert.dat");
 	}else{	/* ƒfƒoƒbƒO */
 		char buf1[256], buf2[256], buf3[256];
 		strcpy(buf2, "+");
@@ -1317,6 +756,7 @@ CTyping::CTyping(){
 			m_trie.insert(buf2, CConvertData(buf1, buf3));
 		}
 	}
+	strcpy(m_name, "");
 	
 	/* ƒ`ƒƒƒŒƒ“ƒW‚ğ‰Šú‰»iDefault‚Í‰½‚à•Ï‚È‚±‚Æ‚µ‚È‚¢j */
 	/* ƒ`ƒƒƒŒƒ“ƒW‚Í‹Èƒ[ƒh‚Ì‚Æ‚«‰Šú‰»‚µ‚È‚¢‚Ì‚Å */
@@ -1334,6 +774,29 @@ CTyping::~CTyping(){
 	unload();
 	DeleteFontToHandle(m_fontHandleNormal);	/* ƒtƒHƒ“ƒg‚ğíœ */
 	DeleteFontToHandle(m_fontHandleBig);
+}
+
+void CTyping::loadDictionary(const char *fileName){
+	FILE *fp;
+	fp = fopen(fileName,"r");
+	if(fp == NULL){
+		throw "ƒ[ƒ}š«‘‚ªŠJ‚¯‚Ü‚¹‚ñB";
+	}
+	char buf[256], buf1[256], buf2[256], buf3[256];
+	while(fgetline(buf, fp)!=NULL){
+		int n=sscanf(buf, "%s%s%s", buf1, buf2, buf3);
+		/* ƒ[ƒ}šA“ú–{ŒêAc‚éƒ[ƒ}š */
+		if(n<2){
+			throw "ƒ[ƒ}š«‘‚ÌŒ`®‚ª•s³‚Å‚·B";
+		}
+		int len;
+		if(n == 2){
+			strcpy(buf3, "");
+		}
+		m_trie.insert(buf2, CConvertData(buf1, buf3));
+		/* “ú–{Œê‚ğƒL[‚Éƒ[ƒ}š‚Ìƒf[ƒ^‚ğ“ü‚ê‚é */
+	}
+	fclose(fp);
 }
 
 void CTyping::load(const char *fumenFileName, const char *rankingFileName){
@@ -1552,6 +1015,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	
 	strcpy(m_text, "");
 	
+	m_scoreDraw = 0;
+	
 	m_effect1.clear();	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg‚ğ‰Šú‰» */
 	
 	drawGaugeInit();	/* ƒQ[ƒW‰Šú‰» */
@@ -1568,6 +1033,10 @@ void CTyping::unload(){
 		m_soundHandleMusic = -1;
 	}
 	unloadRanking();
+}
+
+void CTyping::setName(const char *name){
+	strcpy(m_name, name);
 }
 
 void CTyping::setChallenge(CChallenge &challenge){
@@ -1597,6 +1066,11 @@ void CTyping::keyboard(char ch, double timeCount){
 	}
 	if(m_phase == PHASE_RESULT){	/* ƒXƒRƒA•\¦’†‚È‚ç */
 		/* –¼‘O‹L“ü‚Ì‚½‚ß‚Éƒoƒbƒtƒ@‚ğ“Ç‚İ‘‚« */
+		double time = getTime(timeCount);	/* ƒL[ƒ{[ƒh‚ğ‰Ÿ‚µ‚½‚Ü‚Å‚ÌŠÔ‚ğæ“¾ */
+		if(time < 2.0){	/* I—¹’¼Œã‚ÌŒë‘€ì‚ğ–h~ */
+			return;
+		}
+#if 0
 		if(ch < CTRL_CODE_CMP){	/* •¶šƒR[ƒh‚Å‚È‚¢‚Æ‚« */
 			switch(ch){
 			case CTRL_CODE_CR:	/* ‰üs‚È‚çŠm’è */
@@ -1620,13 +1094,45 @@ void CTyping::keyboard(char ch, double timeCount){
 			}
 			return;
 		}
-		if(ch == ' '){	/* ƒXƒy[ƒX‚ÍƒAƒ“ƒ_[ƒo[‚É•ÏŠ·iƒ‰ƒ“ƒLƒ“ƒOƒtƒ@ƒCƒ‹‚Ìd—l‚Ì‚½‚ßj */
+#endif
+		if(ch == ' '){	/* ƒXƒy[ƒX‚ÍƒAƒ“ƒ_[ƒo[‚É•ÏŠ·iƒXƒy[ƒX‚Ì‚İ‚Ìˆá‚¢‚ğì‚ç‚È‚¢‚½‚ßj */
 			ch = '_';
 		}
+		int ret;
+		if(strlen(m_name) > 0){
+			char buf[1];
+			int len = 0;
+			ret = editBuffer(ch, buf, len);	/* ƒ_ƒ~[‚ğ‘€ì */
+			/* Enter‚ª‰Ÿ‚³‚ê‚½‚©‚Ç‚¤‚©‚Ì‚İ‚ªd—v */
+		}else{
+			ret = editBuffer(ch, m_typeBuffer, m_typeBufferLen);
+		}
+		switch(ret){
+		case EDIT_BUFFER_OK:
+			if(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode){
+				/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡Aƒ‰ƒ“ƒLƒ“ƒO‚É‚Ì‚¹‚È‚¢ */
+				/* ƒŠƒvƒŒƒC‚âƒfƒoƒbƒO‚Í‹L˜^‚µ‚È‚¢ */
+				phase(PHASE_FINISHED);
+			}else{	/* ƒŠƒvƒŒƒCEƒfƒoƒbƒOƒ‚[ƒh */
+				if(strlen(m_name) > 0){
+					strcpy(m_typeBuffer, m_name);
+					phase(PHASE_FINISHED);
+				}
+				if(m_typeBufferLen > 0){	/* –¼‘O‚ª“ü—Í‚³‚ê‚Ä‚¢‚é‚©Šm”F */
+					phase(PHASE_FINISHED);
+				}
+			}
+			break;
+		case EDIT_BUFFER_CANCEL:	/* y‚±‚Ì‰Â”\«‚Í‚È‚¢‚Í‚¸z */
+			break;
+		}
+		return;
+#if 0
 		if(m_typeBufferLen < TYPE_BUFFER_LEN){
 			m_typeBuffer[m_typeBufferLen++] = ch;
 		}
 		return;
+#endif
 	}
 	if(m_phase == PHASE_FINISHED){	/* ƒ‰ƒ“ƒLƒ“ƒO•\¦’†‚È‚ç */
 		if(ch == CTRL_CODE_CR){	/* Enter‚ÅI—¹ */
@@ -1864,7 +1370,8 @@ double CTyping::getTime(double timeCount){	/* timeCount‚ÌŠJn‚©‚ç‚ÌŒo‰ß•b‚ğ
 void CTyping::phase(int phaseNum){
 	if(phaseNum == PHASE_RESULT){	/* I—¹‚µ‚ÄAƒXƒRƒA•\¦‚É */
 		setTime();	/* •\¦ŠJn‚³‚ê‚Ä‚©‚ç‚ÌŠÔ‚ğ—˜—p‚·‚é‚½‚ß‚ÉƒZƒbƒg */
-		m_typeBufferLen = 0;	/* –¼‘O“ü—Í‚Ég‚¤‚Ì‚Åƒoƒbƒtƒ@‚ğƒNƒŠƒA */
+		m_typeBuffer[0] = '\0';	/* –¼‘O“ü—Í‚Ég‚¤‚Ì‚Åƒoƒbƒtƒ@‚ğƒNƒŠƒA */
+		m_typeBufferLen = 0;
 		
 		/* ’Ê‰ß‚µ‚½ŒÂ”‚ğ”‚¦‚Ä‚¨‚­ */
 		m_countPass = m_countAll - m_countExcellent - m_countGood - m_countFair - m_countPoor;
@@ -1873,8 +1380,7 @@ void CTyping::phase(int phaseNum){
 		if(m_combo == m_countAll){
 			m_comboMax = -1;	/* Å‘åƒRƒ“ƒ{”‚ğuƒtƒ‹ƒRƒ“ƒ{v‚Æ‚µ‚Ä‚¨‚­ */
 		}
-	}
-	if(phaseNum == PHASE_FINISHED){
+	}else if(phaseNum == PHASE_FINISHED){
 		if(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode){
 			/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡Aƒ‰ƒ“ƒLƒ“ƒO‚É‚Ì‚¹‚È‚¢ */
 			/* ƒŠƒvƒŒƒC‚âƒfƒoƒbƒO‚Í‹L˜^‚µ‚È‚¢ */
@@ -1883,8 +1389,8 @@ void CTyping::phase(int phaseNum){
 		}else{
 			CScore score(m_typeBuffer, m_score, m_scoreAccuracy, m_scoreTyping,
 				m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
-				m_countAll, m_comboMax);
-			m_rank = m_ranking.update(score);
+				m_countAll, m_comboMax, m_challenge);
+			m_rank = m_ranking.update(score, g_config.f_rankingCheckDate, g_config.f_rankingCheckChallenge);
 			if(m_rank >= 0){
 				m_ranking.write();
 			}else{
@@ -1902,6 +1408,7 @@ bool CTyping::input(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterat
 		double time, bool isCheckOnly){
 	typeBuffer[typeBufferLen] = '\0';
 	/* typeBufferLen‚ğuÀÛ‚É‘Å‚Á‚½’·‚³v‚Æ‚µ‚Ä—p‚¢‚é‚½‚ß */
+	/* ‚±‚ê‚ğ‘‚¢‚Ä‚¨‚©‚È‚¢‚Æƒoƒbƒtƒ@ƒI[ƒo[ƒ‰ƒ“‚ª‹N‚«‚é */
 	
 	if(isCheckOnly){
 		int tmpTypeBufferLen = typeBufferLen + 1;	/* typeBufferLen‚ÍXV‚µ‚È‚¢–â‘è‚È‚µ */
@@ -2154,7 +1661,10 @@ void CTyping::drawGauge(){	/* ƒQ[ƒW‚ğ•\¦ */
 	for(int i=0; i<4; i++){
 		x[i] = m_gauge[i] * m_gaugeRate;
 	}
-	DrawBox(X_GAUGE - W_GAUGE, y, X_GAUGE, y + 4 * h, GetColor(32, 32, 32), TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 128);	/* •s“§–¾‚³1/2 */
+	DrawBox(X_GAUGE - W_GAUGE, y, X_GAUGE, y + 4 * h, GetColor(64, 64, 64), TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 224);	/* •s“§–¾‚³7/8 */
+	//SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 	/* ‚»‚ê‚¼‚ê‚Ì’·‚³‚ğ•\¦ */
 	DrawBox((int)(X_GAUGE - x[0]), y        , X_GAUGE, y +     h, COLOR_EXCELLENT, TRUE);
 	DrawBox((int)(X_GAUGE - x[1]), y +     h, X_GAUGE, y + 2 * h, COLOR_GOOD, TRUE);
@@ -2162,14 +1672,46 @@ void CTyping::drawGauge(){	/* ƒQ[ƒW‚ğ•\¦ */
 	DrawBox((int)(X_GAUGE - x[3]), y + 3 * h, X_GAUGE, y + 4 * h, COLOR_POOR, TRUE);
 	
 	/* Å‹ß•ÏX‚³‚ê‚½‚à‚Ì‚ğÆ‚ç‚· */
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[0]));
-	DrawBox(X_GAUGE - W_GAUGE, y        , X_GAUGE, y +     h, COLOR_EXCELLENT2, TRUE);
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[1]));
-	DrawBox(X_GAUGE - W_GAUGE, y +     h, X_GAUGE, y + 2 * h, COLOR_GOOD2, TRUE);
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[2]));
-	DrawBox(X_GAUGE - W_GAUGE, y + 2 * h, X_GAUGE, y + 3 * h, COLOR_FAIR2, TRUE);
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * m_gaugeLight[3]));
-	DrawBox(X_GAUGE - W_GAUGE, y + 3 * h, X_GAUGE, y + 4 * h, COLOR_POOR2, TRUE);
+	{
+		double Light = m_gaugeLight[0];
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+		Light *= 4.0;
+		if(Light > 1.0){
+			Light = 1.0;
+		}
+		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+		DrawBox(X_GAUGE - W_GAUGE, y         + dh, X_GAUGE, y +     h - dh, COLOR_EXCELLENT2, TRUE);
+	}
+	{
+		double Light = m_gaugeLight[1];
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+		Light *= 4.0;
+		if(Light > 1.0){
+			Light = 1.0;
+		}
+		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+		DrawBox(X_GAUGE - W_GAUGE, y +     h + dh, X_GAUGE, y + 2 * h - dh, COLOR_GOOD2, TRUE);
+	}
+	{
+		double Light = m_gaugeLight[2];
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+		Light *= 4.0;
+		if(Light > 1.0){
+			Light = 1.0;
+		}
+		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+		DrawBox(X_GAUGE - W_GAUGE, y + 2 * h + dh, X_GAUGE, y + 3 * h - dh, COLOR_FAIR2, TRUE);
+	}
+	{
+		double Light = m_gaugeLight[3];
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+		Light *= 4.0;
+		if(Light > 1.0){
+			Light = 1.0;
+		}
+		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+		DrawBox(X_GAUGE - W_GAUGE, y + 3 * h + dh, X_GAUGE, y + 4 * h - dh, COLOR_POOR2, TRUE);
+	}
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 	for(int i=0; i<4; i++){
 		m_gaugeLight[i] *= 0.85;
@@ -2209,26 +1751,28 @@ void CTyping::draw(){
 	double time;
 	if(m_phase == PHASE_READY){
 		if(m_soundHandleMusic == -1){
-			DrawStringToHandle(50, 70, "Now loading...", GetColor(255, 255, 255), m_fontHandleBig);
+			DrawStringToHandle(50, 370, "Now loading...", GetColor(255, 255, 255), m_fontHandleBig);
 		}else{
-			DrawStringToHandle(50, 70, "Press any key to start.", GetColor(255, 255, 255), m_fontHandleBig);
+			DrawStringToHandle(50, 370, "Press any key to start.", GetColor(255, 255, 255), m_fontHandleBig);
 		}
 		time = 0.0;	/* n‚Ü‚é‘O‚Í0•b‚Å~‚Ü‚Á‚Ä‚¢‚é */
 	}else{
 		time = getTime();	/* ŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
 	}
-	//*
+	
+	/*{
+		char buf[256];
+		sprintf(buf, "%4d ƒRƒ“ƒ{", m_combo);
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), m_fontHandleNormal);
+		DrawStringToHandle(X_INFO - width, Y_INFO2, buf,
+			GetColor(255, 255, 255), m_fontHandleNormal);
+	}*/
+	/*
 	DrawFormatStringToHandle(10, Y_INFO, GetColor(255, 255, 255), m_fontHandleNormal,
-		"%10d “_", m_score);
+		"%10d “_", 10*m_scoreDraw);
 	DrawFormatStringToHandle(10, Y_INFO2, GetColor(255, 255, 255), m_fontHandleNormal,
 		"%10d ƒRƒ“ƒ{", m_combo);
-	/*/
-	DrawFormatStringToHandle(10, Y_INFO, GetColor(255, 255, 255), m_fontHandleNormal,
-		"“¾“_: %10d, %10d ƒRƒ“ƒ{", m_score, m_combo);
-	DrawFormatStringToHandle(10, Y_INFO2, GetColor(255, 255, 255), m_fontHandleNormal,
-		"( %d + %d ), ( %d / %d / %d / %d), %d",
-		m_scoreAccuracy, m_scoreTyping, m_countExcellent, m_countGood, m_countFair, m_countPoor, m_comboMax);
-	//*/
+	*/
 	
 	/* ¬ßüA”ü‚ğ•\¦ */
 	while((*m_beatLineDrawLeft).time != INFTY){
@@ -2341,8 +1885,8 @@ void CTyping::draw(){
 					/* ˆÊ’u‚ğ•Û‘¶ */
 					(*i).x = posX;
 					(*i).y = posY;
-					double arg = (GetRand(20) - 10) / 10.0;
-					/* -1.0ˆÈã1.0ˆÈ‰º0.1‚İ‚Åƒ‰ƒ“ƒ_ƒ€ */
+					double arg = (GetRand(32) - 16) / 20.0;
+					/* -0.8ˆÈã0.8ˆÈ‰º0.05‚İ‚Åƒ‰ƒ“ƒ_ƒ€ */
 					(*i).vx = 100.0 * sin(arg);
 					(*i).vy = 100.0 * cos(arg);
 				}
@@ -2423,7 +1967,8 @@ void CTyping::draw(){
 	
 	{	/* ƒƒbƒZ[ƒW•\¦ */
 		double timeDiff = time - m_textTime;
-		if(timeDiff <= 0.5){	/* ƒƒbƒZ[ƒWi—D—Ç‰Â•s‰Âj‚ª0.5•bŠÔ•\¦‚³‚ê‚é */
+		if(timeDiff <= (0.5+0.1)){	/* ƒƒbƒZ[ƒWi—D—Ç‰Â•s‰Âj‚ª0.5•bŠÔ•\¦‚³‚ê‚é */
+			/* 0.1•bc‘œ‚ªc‚é */
 			//int strLen = strlen(m_text);
 			//int strWidth = GetDrawStringWidthToHandle(m_text, strLen, m_fontHandleBig);
 			int strX;
@@ -2434,8 +1979,13 @@ void CTyping::draw(){
 			if(timeDiff < 0.05){	/* 0.05•bŒã‚É‚Í’èˆÊ’u */
 				strY += ((0.05 - timeDiff) / 0.05) * 10;	/* 10‚¾‚¯‰º‚©‚ço‚Ä‚­‚é */
 			}
+			if(timeDiff > 0.5){
+				double t = (timeDiff - 0.5) / 0.1;
+				SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255 * (1.0 - t)));
+			}
 			DrawStringToHandle(strX, strY, m_text,
 				m_textColor, m_fontHandleBig);
+			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 		}
 	}
 	
@@ -2497,6 +2047,27 @@ void CTyping::draw(){
 	
 	drawGauge();
 	
+	m_scoreDraw = m_score/10 - (int)(0.7 * (m_score/10 - m_scoreDraw));
+	{
+		char buf[256];
+		sprintf(buf, "%8d", 10*m_scoreDraw);	// "%8d “_"
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), m_fontHandleBig);
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 64);	/* 1/4‚Ì•s“§–¾‚³‚Å•‚Å•`‚­ */
+		DrawBox(X_SCORE - width - 4, Y_SCORE - 4, X_SCORE + 4, Y_SCORE + 36 + 4,
+			GetColor(0, 0, 0), TRUE);
+		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+		DrawStringToHandle(X_SCORE - width, Y_SCORE, buf,
+			GetColor(255, 255, 255), m_fontHandleBig);
+	}
+	
+	{
+		char buf[256];
+		sprintf(buf, "Å‘å %4d ƒRƒ“ƒ{", m_comboMax);
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), m_fontHandleNormal);
+		DrawStringToHandle(X_INFO - width, Y_INFO, buf,
+			GetColor(255, 255, 255), m_fontHandleNormal);
+	}
+	
 	m_effect1.draw(time);	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 }
 
@@ -2506,23 +2077,23 @@ void CTyping::drawResult(){
 		"”»’è :");
 	if(time >= 0.6){
 		DrawFormatStringToHandle(320, 15, COLOR_EXCELLENT, m_fontHandleNormal,
-			"@—D : %5d / %d", m_countExcellent, m_countAll);
+			"@—D : %4d / %d", m_countExcellent, m_countAll);
 	}
 	if(time >= 0.7){
 		DrawFormatStringToHandle(320, 40, COLOR_GOOD, m_fontHandleNormal,
-			"@—Ç : %5d / %d", m_countGood, m_countAll);
+			"@—Ç : %4d / %d", m_countGood, m_countAll);
 	}
 	if(time >= 0.8){
 		DrawFormatStringToHandle(320, 65, COLOR_FAIR, m_fontHandleNormal,
-			"@‰Â : %5d / %d", m_countFair, m_countAll);
+			"@‰Â : %4d / %d", m_countFair, m_countAll);
 	}
 	if(time >= 0.9){
 		DrawFormatStringToHandle(320, 90, COLOR_POOR, m_fontHandleNormal,
-			"•s‰Â : %5d / %d", m_countPoor, m_countAll);
+			"•s‰Â : %4d / %d", m_countPoor, m_countAll);
 	}
 	if(time >= 1.0){
 		DrawFormatStringToHandle(320, 115, GetColor(255, 255, 255), m_fontHandleNormal,
-			"’Ê‰ß : %5d / %d", m_countPass, m_countAll);
+			"’Ê‰ß : %4d / %d", m_countPass, m_countAll);
 	}
 	if(time >= 1.8){
 		if(m_comboMax >= 0){
@@ -2539,26 +2110,28 @@ void CTyping::drawResult(){
 	}
 	if(time >= 2.9){
 		DrawFormatStringToHandle(320, 235, GetColor(255, 255, 255), m_fontHandleNormal,
-			"¿ : %10d “_", m_scoreAccuracy);
+			"¿ : %7d “_", m_scoreAccuracy);
 	}
 	if(time >= 3.2){
 		DrawFormatStringToHandle(320, 260, GetColor(255, 255, 255), m_fontHandleNormal,
-			"—Ê : %10d “_", m_scoreTyping);
+			"—Ê : %7d “_", m_scoreTyping);
 	}
 	if(time >= 4.0){
 		DrawFormatStringToHandle(30, 310, GetColor(255, 255, 255), m_fontHandleBig,
-			"‘“¾“_ : %10d “_",m_score);
+			"‘“¾“_ : %8d “_", m_score);
 	}
 	if(!(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode)){	/* ’Êí‚Ì‚İ */
 		/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡‚âƒŠƒvƒŒƒC‚âƒfƒoƒbƒO@‚Å‚È‚¯‚ê‚ÎA */
 		/* ƒ‰ƒ“ƒLƒ“ƒO‚É‚¢‚ê‚é‚½‚ßA–¼‘O‚ğ“ü—ÍB */
-		if(time >= 4.2){
+		if(strlen(m_name) > 0){	/* –¼‘O‚ªİ’è‚³‚ê‚Ä‚¢‚éê‡A‚»‚ê‚ğ•\¦ */
+			DrawStringToHandle(60, 400, m_name, GetColor(255, 255, 255), m_fontHandleBig);
+		}else if(time >= 2.0){
+			/* –¼‘O‚ªİ’è‚³‚ê‚Ä‚È‚¢ê‡Aˆê’èŠÔ‚ªŒo‚Á‚½‚ç“ü—ÍŠJn */
 			DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), m_fontHandleNormal,
 				"–¼‘O‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢ :");
+			DrawStringToHandle(60, 400, m_typeBuffer, GetColor(255, 255, 255), m_fontHandleBig);
+			/* “ü—Í‚³‚ê‚½•¶š—ñ‚ğ•\¦ */
 		}
-		m_typeBuffer[m_typeBufferLen] = '\0';
-		DrawStringToHandle(60, 400, m_typeBuffer, GetColor(255, 255, 255), m_fontHandleBig);
-		/* “ü—Í‚³‚ê‚½•¶š—ñ‚ğ•\¦ */
 	}
 	if(m_phase == PHASE_FINISHED){
 		if(m_rank >= 0){
@@ -2750,7 +2323,11 @@ bool CTyping::saveReplayLoop(){
 		if(len != 0){
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
 		}else{
-			DrawStringToHandle(10, 50, g_config.defaultReplayFile, GetColor(128, 128, 128), m_fontHandleBig);
+			int color = GetColor(128, 128, 128);
+			if(isSaved){	/* ƒZ[ƒuŒã‚È‚ç“¯‚¶ˆµ‚¢ */
+				color = GetColor(255, 255, 255);
+			}
+			DrawStringToHandle(10, 50, g_config.defaultReplayFile, color, m_fontHandleBig);
 		}
 		DrawStringToHandle(10, 90, message, GetColor(255, 255, 255), m_fontHandleBig);
 		
@@ -2786,8 +2363,7 @@ bool CTyping::saveReplayLoop(){
 					break;
 				}
 			}else{
-				int ret = editBuffer(ch, buf, len);	/* ƒoƒbƒtƒ@‚ğ‘€ì */
-				switch(ret){
+				switch(editBuffer(ch, buf, len)){	/* ƒoƒbƒtƒ@‚ğ‘€ì */
 				case EDIT_BUFFER_OK:
 					isSaved = saveReplay((len != 0) ? buf : g_config.defaultReplayFile, f_confirm);
 					if(isSaved){
@@ -2825,7 +2401,11 @@ bool CTyping::loadReplayLoop(){
 		if(len != 0){
 			DrawStringToHandle(10, 50, buf, GetColor(255, 255, 255), m_fontHandleBig);
 		}else{
-			DrawStringToHandle(10, 50, g_config.defaultReplayFile, GetColor(128, 128, 128), m_fontHandleBig);
+			int color = GetColor(128, 128, 128);
+			if(isLoaded){	/* ƒZ[ƒuŒã‚È‚ç“¯‚¶ˆµ‚¢ */
+				color = GetColor(255, 255, 255);
+			}
+			DrawStringToHandle(10, 50, g_config.defaultReplayFile, color, m_fontHandleBig);
 		}
 		DrawStringToHandle(10, 90, message, GetColor(255, 255, 255), m_fontHandleBig);
 		
@@ -2840,8 +2420,7 @@ bool CTyping::loadReplayLoop(){
 			}
 			strcpy(message, "");	/* ‰½‚©‘Å‚Á‚½‚çƒƒbƒZ[ƒW‚ÍÁ‹ */
 			
-			int ret = editBuffer(ch, buf, len);	/* ƒoƒbƒtƒ@‚ğ‘€ì */
-			switch(ret){
+			switch(editBuffer(ch, buf, len)){	/* ƒoƒbƒtƒ@‚ğ‘€ì */
 			case EDIT_BUFFER_OK:
 				isLoaded = loadReplay((len != 0) ? buf : g_config.defaultReplayFile);
 				if(isLoaded){
@@ -3234,8 +2813,8 @@ void drawMainRanking(vector<CMusicInfo>::iterator itr, int rankingPos,
 }
 
 /* ƒƒCƒ“‰æ–Êi‹È‘I‘ğ‰æ–Êj‚ğ•`‚­ */
-void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
-		DrawMainInfo &dInfo, CChallenge &challenge, int inputHandle, int fontHandleDefault){
+void drawMain(vector<CMusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
+		CChallenge &challenge, const char *name, int inputHandle, int fontHandleDefault){
 	//if(dInfo.rankingPos == -RANKING_DRAW_LEN){
 	int dy = 180 + (MUSIC_INFO_HEIGHT - dInfo.addHeight[0])/2
 		+ (int)floor(dInfo.drawPosY + 0.5);
@@ -3307,7 +2886,6 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
 #endif
 	DrawBox(0, 360, W_WINDOW, H_WINDOW - 25, GetColor(32, 32, 32), TRUE);
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
-	DrawLine(0, H_WINDOW - 25, W_WINDOW, H_WINDOW - 25, GetColor(170, 170, 170));
 	
 	if(inputHandle == -1){	/* ŒŸõˆÈŠO */
 		DrawStringToHandle(10, 370, "ª/«: ‹È‘I‘ğ, ©/¨: ƒ‰ƒ“ƒLƒ“ƒO•\¦,   F: ‹ÈŒŸõ, Enter: ‹ÈŒˆ’è",
@@ -3347,49 +2925,75 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
 		DrawKeyInputString(10, 390, inputHandle);	/* ŒŸõ•¶š—ñ‚ğ•\¦ */
 		//SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* •`‰æ”ÍˆÍ‚ğŒ³‚É–ß‚· */
 	}
-	int color;
+	
+	{	/* –¼‘O‚ğ•\¦ */
+		char buf[256];
+		int color;
+		if(strlen(name) > 0){
+			strcpy(buf, name);
+			color = GetColor(255, 255, 255);
+		}else{
+			strcpy(buf, "(guest)");
+			color = GetColor(128, 128, 128);
+		}
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandleDefault);
+		DrawBox(W_WINDOW - 20 - width, H_WINDOW - 25, W_WINDOW, H_WINDOW, GetColor(32, 32, 64), TRUE);
+		DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 20, buf, color, fontHandleDefault);
+	}
+	
+	DrawLine(0, H_WINDOW - 25, W_WINDOW, H_WINDOW - 25, GetColor(170, 170, 170));
+	
 	if(challenge.test(CHALLENGE_STEALTH)){
-		DrawStringToHandle(10, H_WINDOW - 20, "[ CircleStealth ]", GetColor(255, 128, 0), fontHandleDefault);
+		DrawStringToHandle(130, H_WINDOW - 20, "[ CStealth ]", GetColor(255, 32, 0), fontHandleDefault);
 	}else{
 		if(challenge.test(CHALLENGE_HIDDEN)){
-			color = GetColor(255, 255, 0);
+			if(challenge.test(CHALLENGE_SUDDEN)){
+				DrawStringToHandle(130, H_WINDOW - 20, "[ Hid.Sud. ]", GetColor(255, 128, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(130, H_WINDOW - 20, "[  Hidden  ]", GetColor(255, 255, 0), fontHandleDefault);
+			}
+		}else{
+			if(challenge.test(CHALLENGE_SUDDEN)){
+				DrawStringToHandle(130, H_WINDOW - 20, "[  Sudden  ]", GetColor(255, 255, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(130, H_WINDOW - 20, "[ Hid.Sud. ]", GetColor(64, 64, 64), fontHandleDefault);
+			}
+		}
+	}
+	{
+		int color;
+		if(challenge.test(CHALLENGE_LYRICS_STEALTH)){
+			color = GetColor(255, 128, 0);
 		}else{
 			color = GetColor(64, 64, 64);
 		}
-		DrawStringToHandle(10, H_WINDOW - 20, "[ Hidden ]", color, fontHandleDefault);
-		
-		if(challenge.test(CHALLENGE_SUDDEN)){
-			color = GetColor(255, 255, 0);
-		}else{
-			color = GetColor(64, 64, 64);
-		}
-		DrawStringToHandle(100, H_WINDOW - 20, "[ Sudden ]", color, fontHandleDefault);
+		DrawStringToHandle(230, H_WINDOW - 20, "[ LStealth ]", color, fontHandleDefault);
 	}
-	if(challenge.test(CHALLENGE_LYRICS_STEALTH)){
-		color = GetColor(255, 255, 0);
-	}else{
-		color = GetColor(64, 64, 64);
-	}
-	DrawStringToHandle(190, H_WINDOW - 20, "[ LStealth ]", color, fontHandleDefault);
-	
 	{
 		char buf[256];
+		int color;
 		sprintf(buf, "[ Speed x%3.1f ]", challenge.speed());
-		if(challenge.speed() >= 2.0){
+		if(challenge.speed() > 3.0){
+			color = GetColor(255, 32, 0);
+		}else if(challenge.speed() > 2.0){
 			color = GetColor(255, 128, 0);
 		}else if(challenge.speed() > 1.0){
 			color = GetColor(255, 255, 0);
 		}else if(challenge.speed() < 1.0){
-			color = GetColor(128, 255, 0);
+			color = GetColor(128, 128, 255);
 		}else{
 			color = GetColor(64, 64, 64);
 		}
-		DrawStringToHandle(300, H_WINDOW - 20, buf, color, fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 20, buf, color, fontHandleDefault);
 	}
 	
 	{
 		char buf[256];
-		if(challenge.key() >= 6){
+		int color;
+		if(challenge.key() > 8){
+			sprintf(buf, "[ Key +%2d ]", challenge.key());
+			color = GetColor(255, 32, 0);
+		}else if(challenge.key() > 4){
 			sprintf(buf, "[ Key +%2d ]", challenge.key());
 			color = GetColor(255, 128, 0);
 		}else if(challenge.key() > 0){
@@ -3399,12 +3003,42 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
 			sprintf(buf, "[ Key -%2d ]", -challenge.key());
 			color = GetColor(128, 255, 0);
 		}else{
-			sprintf(buf, "[ Key %3d]", challenge.key());
+			sprintf(buf, "[ Key %3d ]", challenge.key());
 			color = GetColor(64, 64, 64);
 		}
-		DrawStringToHandle(420, H_WINDOW - 20, buf, color, fontHandleDefault);
+		DrawStringToHandle(330, H_WINDOW - 20, buf, color, fontHandleDefault);
 	}
 	
+	if(challenge.test(CHALLENGE_SIN)){
+		if(challenge.test(CHALLENGE_COS)){
+			if(challenge.test(CHALLENGE_TAN)){
+				DrawStringToHandle(430, H_WINDOW - 20, "[sct]", GetColor(255, 128, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(430, H_WINDOW - 20, "[sc-]", GetColor(255, 128, 0), fontHandleDefault);
+			}
+		}else{
+			if(challenge.test(CHALLENGE_TAN)){
+				DrawStringToHandle(430, H_WINDOW - 20, "[s-t]", GetColor(255, 128, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(430, H_WINDOW - 20, "[sin]", GetColor(255, 255, 0), fontHandleDefault);
+			}
+		}
+	}else{
+		if(challenge.test(CHALLENGE_COS)){
+			if(challenge.test(CHALLENGE_TAN)){
+				DrawStringToHandle(430, H_WINDOW - 20, "[-ct]", GetColor(255, 128, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(430, H_WINDOW - 20, "[cos]", GetColor(255, 255, 0), fontHandleDefault);
+			}
+		}else{
+			if(challenge.test(CHALLENGE_TAN)){
+				DrawStringToHandle(430, H_WINDOW - 20, "[tan]", GetColor(255, 255, 0), fontHandleDefault);
+			}else{
+				DrawStringToHandle(430, H_WINDOW - 20, "[sct]", GetColor(64, 64, 64), fontHandleDefault);
+			}
+		}
+	}
+	/*
 	if(challenge.test(CHALLENGE_SIN)){
 		color = GetColor(255, 255, 0);
 	}else{
@@ -3425,6 +3059,7 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr,
 		color = GetColor(64, 64, 64);
 	}
 	DrawStringToHandle(600, H_WINDOW - 20, "[t]", color, fontHandleDefault);
+	*/
 }
 
 void editChallenge(CChallenge &challenge, char ch){
@@ -3488,7 +3123,8 @@ void editChallenge(CChallenge &challenge, char ch){
 	}
 }
 
-bool main2(bool &isWindowMode){	/* false‚ğ•Ô‚¹‚ÎAI—¹Atrue‚ğ•Ô‚¹‚ÎAisWindowMode‚ÅƒEƒBƒ“ƒhƒE‚ğ•K—v‚È‚ç•ÏX‚µ‚ÄÄ“Ç‚İ‚İ */
+bool main2(bool &isWindowMode, const char *name){
+	/* false‚ğ•Ô‚¹‚ÎAI—¹Atrue‚ğ•Ô‚¹‚ÎAisWindowMode‚ÅƒEƒBƒ“ƒhƒE‚ğ•K—v‚È‚ç•ÏX‚µ‚ÄÄ“Ç‚İ‚İ */
 	int fontHandleDefault = CreateFontToHandle(NULL, 16, 3);
 	
 	bool retValue;	/* ‰æ–Êƒ‚[ƒh‚ğ•Ï‚¦‚Ä‘±‚¯‚éê‡true */
@@ -3516,6 +3152,8 @@ bool main2(bool &isWindowMode){	/* false‚ğ•Ô‚¹‚ÎAI—¹Atrue‚ğ•Ô‚¹‚ÎAisWindowMo
 	
 	CTyping typing;
 	
+	typing.setName(name);
+	
 	while(1){
 		if(ProcessMessage() == -1){
 			retValue = false;
@@ -3523,7 +3161,7 @@ bool main2(bool &isWindowMode){	/* false‚ğ•Ô‚¹‚ÎAI—¹Atrue‚ğ•Ô‚¹‚ÎAisWindowMo
 		}
 		
 		//ClearDrawScreen();
-		drawMain(infoArrayItr, dInfo, challenge, inputHandle, fontHandleDefault);
+		drawMain(infoArrayItr, dInfo, challenge, name, inputHandle, fontHandleDefault);
 		dInfo.step();
 		myScreenFlip();
 		
@@ -3640,19 +3278,38 @@ L1:
 }
 
 /* flag ‚ÍƒŠƒXƒg‚Ì“Ç‚İ‚İ‚ªŠ®—¹‚µ‚½‚©‚Ç‚¤‚© */
-void drawTitle(int fontHandleTitle, int fontHandleInfo, char *strInfo){
+void drawTitle(int fontHandleTitle, int fontHandleCopyright, int fontHandleInfo, const char *strInfo){
 	//drawBox(0, 0, W_WINDOW, H_WINDOW, Color(32, 32, 32);
-	char *strTitle = "UTyping";
 	{
+		const char *strTitle = "UTyping";
 		int strWidth = GetDrawStringWidthToHandle(strTitle, strlen(strTitle), fontHandleTitle);
 		DrawStringToHandle((W_WINDOW - strWidth) / 2, H_WINDOW / 3 - 24, strTitle,
 			GetColor(255, 255, 255), fontHandleTitle, GetColor(170, 170, 170));
+	}
+	{
+		const char *strCopyright = "(c)2007 tos";
+		int strWidth = GetDrawStringWidthToHandle(strCopyright, strlen(strCopyright), fontHandleCopyright);
+		DrawStringToHandle(W_WINDOW - 10 - strWidth, H_WINDOW - 10 - 12, strCopyright,
+			GetColor(255, 255, 255), fontHandleCopyright);
 	}
 	{
 		int strWidth = GetDrawStringWidthToHandle(strInfo, strlen(strInfo), fontHandleInfo);
 		DrawStringToHandle((W_WINDOW - strWidth) / 2, (H_WINDOW) * 2 / 3 - 12, strInfo,
 			GetColor(255, 255, 255), fontHandleInfo);
 	}
+	DrawStringToHandle(10, 10, "ƒ‰ƒ“ƒLƒ“ƒOƒtƒ@ƒCƒ‹‚ÌŒ`®‚ªV‚µ‚­‚È‚è‚Ü‚µ‚½B",
+		GetColor(255, 255, 0), fontHandleInfo);
+	DrawStringToHandle(10, 40, "‹ŒŒ`®‚ÆŒİŠ·«‚Í‚ ‚è‚Ü‚·‚ªAƒÀƒeƒXƒg’†‚Ì‚½‚ßA",
+		GetColor(255, 255, 0), fontHandleInfo);
+	DrawStringToHandle(10, 70, "ƒf[ƒ^‚ª¸‚í‚ê‚È‚¢‚Æ‚¢‚¤•ÛØ‚Í‚Å‚«‚Ü‚¹‚ñB",
+		GetColor(255, 255, 0), fontHandleInfo);
+	DrawStringToHandle(10, 100, "‚²—¹³‚­‚¾‚³‚¢B",
+		GetColor(255, 255, 0), fontHandleInfo);
+		
+	DrawStringToHandle(10, 220, "ƒ‰ƒ“ƒLƒ“ƒO‚Ìd•¡”»’è‚ª‰ü—Ç‚³‚ê‚½‚½‚ßA",
+		GetColor(255, 255, 255), fontHandleInfo);
+	DrawStringToHandle(10, 250, "config‚É‚Â‚¢‚Ä‚ğ“Ç‚Ş‚±‚Æ‚ğ‚¨Š©‚ß‚µ‚Ü‚·B",
+		GetColor(255, 255, 255), fontHandleInfo);
 }
 
 int readList(){
@@ -3701,10 +3358,20 @@ int readList(){
 		g_infoArray.push_back(info);
 	}
 	fclose(fpList);	/* ƒŠƒXƒg‚ğ•Â‚¶‚é */
+	
+	for(vector<CMusicInfo>::iterator i = g_infoArray.begin(); i != g_infoArray.end(); i++){
+		(*i).readRanking();		/* ƒ‰ƒ“ƒLƒ“ƒO‚ğ“Ç‚İ‚İ */
+		(*i).m_numAll = count;
+	}
+	
 	return count;
 }
 
 void main1(bool &isWindowMode){
+	char name[NAME_LEN + 1];
+	int nameLen;
+	name[0] = '\0';
+	nameLen = 0;
 	while(1){
 		g_config.read();	/* config‚ğ“Ç‚İ‚Ş */
 		
@@ -3719,9 +3386,11 @@ void main1(bool &isWindowMode){
 		
 		{
 			int fontHandleTitle = CreateFontToHandle("‚l‚r –¾’©", 48, 3, DX_FONTTYPE_ANTIALIASING_EDGE);
+			int fontHandleNormal = CreateFontToHandle("‚l‚r ƒSƒVƒbƒN", 16, 2, DX_FONTTYPE_ANTIALIASING);
 			int fontHandleInfo = CreateFontToHandle("‚l‚r –¾’©", 24, 3, DX_FONTTYPE_ANTIALIASING);
+			int fontHandleName = CreateFontToHandle("‚l‚r –¾’©", 36, 2, DX_FONTTYPE_ANTIALIASING);
 			//ClearDrawScreen();
-			drawTitle(fontHandleTitle, fontHandleInfo, "Now loading...");
+			drawTitle(fontHandleTitle, fontHandleNormal, fontHandleInfo, "Now loading...");
 			myScreenFlip();
 			
 			bool isCorrectID = checkUTypingUserID();
@@ -3732,18 +3401,23 @@ void main1(bool &isWindowMode){
 				throw "‹È‚ªˆê‹È‚à‘¶İ‚µ‚Ü‚¹‚ñB";
 			}
 			
-			for(vector<CMusicInfo>::iterator i = g_infoArray.begin(); i != g_infoArray.end(); i++){
-				(*i).readRanking();		/* ƒ‰ƒ“ƒLƒ“ƒO‚ğ“Ç‚İ‚İ */
-				(*i).m_numAll = count;
-			}
-			
 			while(1){
 				if(ProcessMessage() == -1){
 					return;
 				}
 				//SetDrawScreen(DX_SCREEN_BACK);
 				//ClearDrawScreen();
-				drawTitle(fontHandleTitle, fontHandleInfo, isCorrectID ? "Press Enter key." : "Wrong UTyping user ID...");
+				drawTitle(fontHandleTitle, fontHandleNormal, fontHandleInfo,
+					isCorrectID ? "Press Enter key." : "Wrong UTyping user ID...");
+				if(isCorrectID){
+					DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), fontHandleNormal,
+						"–¼‘O‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢ :");
+					if(nameLen > 0){
+						DrawStringToHandle(60, 400, name, GetColor(255, 255, 255), fontHandleName);
+					}else{
+						DrawStringToHandle(60, 400, "i–¢İ’èj", GetColor(128, 128, 128), fontHandleName);
+					}
+				}
 				myScreenFlip();
 				char ch = GetKeyboardInput();
 				if(ch == 0){
@@ -3752,28 +3426,35 @@ void main1(bool &isWindowMode){
 				if(!isCorrectID){	/* ID‚ª•s³‚Èê‡‚ÍA‚Ç‚ÌƒL[‚ğ‰Ÿ‚µ‚Ä‚àI—¹B */
 					return;
 				}
-				if(ch == CTRL_CODE_ESC){	/* Esc‚ğ‰Ÿ‚·‚ÆI—¹ */
-					return;
-				}
 				if(ch == CTRL_CODE_TAB){	/* Tab‚ğ‰Ÿ‚·‚ÆAWindow ©¨ FullScreen */
 					isWindowMode = !isWindowMode;	/* isWindowMode‚ğ•ÏX‚µ‚ÄÄ‹N“® */
 					break;
 				}
-				if(ch == CTRL_CODE_CR){	/* ‰üs‚ª‰Ÿ‚³‚ê‚½‚ç‹È‘I‘ğ‰æ–Ê‚Ö */
-					if(!main2(isWindowMode)){	/* false‚ª–ß‚Á‚½ê‡iI—¹‚·‚é‚Æ‚«j */
+				int ret = editBuffer(ch, name, nameLen);
+				if(ret == EDIT_BUFFER_OK){	/* ‰üs‚ª‰Ÿ‚³‚ê‚½‚ç‹È‘I‘ğ‰æ–Ê‚Ö */
+					if(!main2(isWindowMode, name)){	/* false‚ª–ß‚Á‚½ê‡iI—¹‚·‚é‚Æ‚«j */
 						return;
 					}
 					break;	/* true‚ª–ß‚Á‚½ê‡iÄ‹N“®‚·‚é‚Æ‚«j */
+					
+				}else if(ret == EDIT_BUFFER_CANCEL){	/* “ü—Í‚ªƒLƒƒƒ“ƒZƒ‹‚³‚ê‚½ */
+					if(nameLen > 0){	/* “ü—Í‚ª‚ ‚Á‚½ê‡‚Í“ü—Í‚ğÁ‚· */
+						name[0] = '\0';
+						nameLen = 0;
+					}else{	/* ‚»‚¤‚Å‚È‚¢ê‡‚ÍI—¹ */
+						return;
+					}
 				}
 			}
 			
 			g_infoArray.clear();
 			
-			DeleteFontToHandle(g_fontHandleDebug);
 			DeleteFontToHandle(fontHandleTitle);
 			DeleteFontToHandle(fontHandleInfo);
-			
+			DeleteFontToHandle(fontHandleName);
+			DeleteFontToHandle(fontHandleNormal);
 		}
+		DeleteFontToHandle(g_fontHandleDebug);
 		if(ChangeWindowMode(isWindowMode) != DX_CHANGESCREEN_OK){
 			/* WindowMode‚ÌØ‚è‘Ö‚¦‚É¸”s‚µ‚½ */
 			throw "Window ©¨ FullScreen ‚ÌØ‚è‘Ö‚¦‚É¸”s‚µ‚Ü‚µ‚½B";
@@ -3789,7 +3470,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 		bool isWindowMode = !g_config.f_fullScreen;
 		ChangeWindowMode(isWindowMode);
 		
-		SetMainWindowText("UTyping (c)2007 tos");
+		SetMainWindowText("UTyping");
 		
 		SetHookWinProc(KeyboardInputProc);
 		
