@@ -117,6 +117,9 @@ using namespace std;
 #define SCALE_FUNCTION 60.0
 /* ”»’èˆÊ’u‚Ì‰~‚ğŒ´“_‚Æ‚·‚éÀ•W‚Æv‚¤‚Æ‚«‚ÌA’·‚³1‚É‘Š“–‚·‚é‰æ–Ê‚Ì’·‚³ */
 
+#define SEC_FADEOUT 0.8
+/* I‚í‚Á‚Ä‚©‚çƒXƒRƒA•\¦‰æ–Ê‚ÉˆÚs‚·‚é‘O‚ÉƒtƒF[ƒhƒAƒEƒg‚·‚éŠÔ */
+
 /* ============================================================ */
 
 #define W_WINDOW 640
@@ -424,26 +427,26 @@ void CEffect1::draw(double time){
 
 /* ============================================================ */
 
-class CConvertData{
+struct ConvertData{
 public:
-	CConvertData(const char *buf1, const char *buf3);
+	ConvertData(const char *buf1, const char *buf3);
 	bool match_front(const char *str);
 	bool match(const char *str);
 public:
 	/* ‚Ü‚ A‚à‚Æ‚à‚Æstruct‚É‚·‚é‚Â‚à‚è‚¾‚Á‚½‚®‚ç‚¢‚¾‚µ */
-	char m_str[9];	/* “ú–{Œê ¨ ƒ[ƒ}š, ‘SŠp ¨ ”¼Šp ‚Ì•ÏŠ·æ‚Í 4 •¶šˆÈ“à‚¾‚©‚çA5ˆÈã‚É‚µ‚Ä‚¨‚¯‚Î‚æ‚¢ */
+	char m_str[8];	/* “ú–{Œê ¨ ƒ[ƒ}š, ‘SŠp ¨ ”¼Šp ‚Ì•ÏŠ·æ‚Í 4 •¶šˆÈ“à‚¾‚©‚çA5ˆÈã‚É‚µ‚Ä‚¨‚¯‚Î‚æ‚¢ */
 	int m_len;
 	/* str ‚É‚ÍğŒ‚Ég‚í‚ê‚é•¶š—ñ‚ª“ü‚Á‚Ä‚¢‚é‚ªA‚»‚Ì‚¤‚¿Šm’è‚³‚ê‚é’·‚³ */
 	/* —á: u‚ñv‚É‘Î‚µ‚Ä {"nb", 1}, u‚Á‚Áv‚É‘Î‚µ‚Ä {"lltu", 4} ‚È‚Ç */
 };
 
-CConvertData::CConvertData(const char *buf1, const char *buf3){
+ConvertData::ConvertData(const char *buf1, const char *buf3){
 	strcpy(m_str, buf1);
 	m_len = strlen(buf1) - strlen(buf3);
 	/* ‚±‚±‚Å‚ÍAƒf[ƒ^‚ğM—p‚µ‚ÄAbuf3‚ªbuf1‚ÌŒã•û‚Æˆê’v‚·‚é‚±‚Æ‚ğ‰¼’è‚·‚éB */
 }
 
-bool CConvertData::match_front(const char *str){	/* ƒf[ƒ^‚Ì‘O•û‚Æstr‚ªˆê’v‚·‚é‚© */
+bool ConvertData::match_front(const char *str){	/* ƒf[ƒ^‚Ì‘O•û‚Æstr‚ªˆê’v‚·‚é‚© */
 	for(int i=0; str[i]!='\0'; i++){
 		if(str[i] != m_str[i]){
 			return false;
@@ -452,7 +455,7 @@ bool CConvertData::match_front(const char *str){	/* ƒf[ƒ^‚Ì‘O•û‚Æstr‚ªˆê’v‚·‚é‚
 	return true;
 }
 
-bool CConvertData::match(const char *str){
+bool ConvertData::match(const char *str){
 	return (strcmp(m_str, str) == 0);
 }
 
@@ -462,13 +465,13 @@ class CTrieNode{
 public:
 	CTrieNode();
 	~CTrieNode();
-	void insert(const char *str, const CConvertData &data);	/* str‚Å‚½‚Ç‚Á‚½æ‚Édata‚ğ“ü‚ê‚é */
+	void insert(const char *str, const ConvertData &data);	/* str‚Å‚½‚Ç‚Á‚½æ‚Édata‚ğ“ü‚ê‚é */
 	CTrieNode *find(const char *str);
 private:
 	CTrieNode *m_next[256];
 public:
 	/* ‚à‚¤private‚É‚·‚é‚Ì–Ê“| */
-	vector<CConvertData> m_data;
+	vector<ConvertData> m_data;
 };
 
 CTrieNode::CTrieNode(){
@@ -485,7 +488,7 @@ CTrieNode::~CTrieNode(){
 	}
 }
 
-void CTrieNode::insert(const char *str, const CConvertData &data){
+void CTrieNode::insert(const char *str, const ConvertData &data){
 	if(*str == '\0'){	/* ‚½‚Ç‚èI‚í‚Á‚½‚Ì‚Åƒf[ƒ^‚ğ“ü‚ê‚é */
 		m_data.push_back(data);
 		return;
@@ -510,30 +513,32 @@ CTrieNode *CTrieNode::find(const char *str){
 
 /* ============================================================ */
 
-struct Lyrics{
-public:
-	char ch;	/* •ÏŠ·‚³‚ê‚½•¶ši‚ ‚¢‚¤AB`abc123+-‚È‚Çj‚Ì1ƒoƒCƒg */
-	double timeJust,timeUntil;	/* ‚¿‚å‚¤‚Ç‚ÌŠÔA‚»‚Ì•¶šˆÈ‘O‚¾‚¯‚ğ‘Å‚Â‚Æ‚«‚ÉAÅ‚à’x‚¢ŠÔ */
-	bool isBlockStart;	/* 1‰¹ßiƒ^ƒCƒ~ƒ“ƒO”»’è‚ğ‚·‚é‚©‚½‚Ü‚èj‚ÌÅ‰ */
-	bool isTyped;	/* ‚·‚Å‚É‘Å‚½‚ê‚½‚© */
+struct LyricsBlock{
+	int lyricsNum;	/* Lyrics‚Ì”z—ñ‚Ì‰½”Ô–Ú‚©‚ç‚© */
+	int lyricsLen;	/* ˆê‚©‚½‚Ü‚è‚Ì’·‚³iBytej */
+	double timeJust,timeUntil;	/* ‚¿‚å‚¤‚Ç‚ÌŠÔAi‚±‚±‚Ü‚Å‚Ì‚İ‚ğj‘Å‚Â‚±‚Æ‚ª‚Å‚«‚éÅ‚à’x‚¢ŠÔ */
+	bool isValid;
+	int nTyped;	/* ‰½ƒoƒCƒg‘Å‚½‚ê‚½‚© */
 	bool isScoringTarget;	/* Œ»İƒ^ƒCƒ~ƒ“ƒO”»’è‚ğ‚·‚é‘ÎÛ‚Å‚ ‚é‚© */
 	double scoringTime;
-		/* ƒ^ƒCƒ~ƒ“ƒO”»’è‚ğ‚³‚ê‚½AisBlockStart && !isScoringTarget‚Ì‚Æ‚«ˆÈŠO‚ÍˆÓ–¡‚Í‚È‚¢ */
+		/* ƒ^ƒCƒ~ƒ“ƒO”»’è‚ğ‚³‚ê‚½A!isScoringTarget‚Ì‚Æ‚«ˆÈŠO‚ÍˆÓ–¡‚Í‚È‚¢ */
 	//int r, g, b;	/* ‘Å‚¿n‚ß‚ÌƒGƒtƒFƒNƒg‚ÌFiscoringTime‚ª—LŒø‚ÌA—LŒøj */
-	double finishedTime;	/* Block‚ª‘Å‚¿Ø‚ç‚ê‚½A•‰‚È‚ç‚Ü‚¾AisBlockStart‚Ì‚Æ‚«ˆÈŠO‚ÍˆÓ–¡‚Í‚È‚¢ */
+	double finishedTime;	/* Block‚ª‘Å‚¿Ø‚ç‚ê‚½A•‰‚È‚ç‚Ü‚¾ */
 	double x, y, vx, vy;
 		/* ifinishedTime‚ª”ñ•‰‚Ìj‘Å‚¿Ø‚ç‚ê‚½‚Ì’µ‚Ë‚©‚½iŒü‚«‚Íƒ‰ƒ“ƒ_ƒ€j‚ğ•Û */
 public:
-	bool isJapanese1(); 
+	int lyricsPos();
 };
 
-bool Lyrics::isJapanese1(){
-	if(this->ch & 0x80){
-		return true;
-	}else{
-		return false;
-	}
+int LyricsBlock::lyricsPos(){	/* ‘Å‚Á‚Ä‚È‚¢Å‰‚Ì‚à‚Ì‚ÌLyrics”z—ñ‚Å‚Ì“Y‚¦š‚ğ•Ô‚· */
+	return lyricsNum + nTyped;
 }
+
+struct Lyrics{
+	char ch;	/* •ÏŠ·‚³‚ê‚½•¶ši‚ ‚¢‚¤AB`abc123+-‚È‚Çj‚Ì1ƒoƒCƒg */
+	int blockNum;	/* LyricsBlock‚Ì”z—ñ‚Ì‰½”Ô–Ú‚ÉŠÜ‚Ü‚ê‚é‚© */
+	int blockPos;	/* ‚»‚Ì‚È‚©‚Å‰½ƒoƒCƒg–Ú‚© */
+};
 
 /* ============================================================ */
 
@@ -577,13 +582,13 @@ void LyricsKanji::draw(int x, int y, int fontHandle) const{
 				*ptr1++ = *ptr2++;
 				break;
 			}
-		}else if((*ptr2 & 0x80) == 0){
-			*ptr1++ = *ptr2++;
-		}else{
+		}else if(isJapanese1st(*ptr2)){
 			*ptr1++ = *ptr2++;
 			if(*ptr2 == '\0'){
 				break;
 			}
+			*ptr1++ = *ptr2++;
+		}else{
 			*ptr1++ = *ptr2++;
 		}
 	}
@@ -620,6 +625,9 @@ public:
 	~CTyping();
 private:
 	void loadDictionary(const char *fileName);
+	
+	void addLyrics(const char *buf, double time);
+	void addNullLyrics(double time, bool isLast);
 public:
 	void load(const char *fumenFileName, const char *rankingFileName);
 	void unload();
@@ -637,24 +645,26 @@ private:
 	
 	void setTime();
 	void synchronizeTime(int soundHandle, double frequencyRate);
-	double getTime();
-	double getTime(double timeCount);
+	double getTime() const;
+	double getTime(double timeCount) const;
 	
 	void phase(int phaseNum);
 	
-	bool input(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPosition,
-		double time, bool isCheckOnly);
-	bool input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPosition,
-		double time, bool isCheckOnly, bool isSaiki);	/* input‚ÌÀÛ‚ÉŒvZ‚·‚é•”•ª */
+	bool input(char *typeBuffer, int &typeBufferLen, vector<LyricsBlock>::iterator &lyricsPosition,
+		bool f_successive, double time, bool isCheckOnly);
+	bool input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPos,
+		bool f_successive, double time, bool isCheckOnly, bool isSaiki);	/* input‚ÌÀÛ‚ÉŒvZ‚·‚é•”•ª */
 	
 	void scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
-	void scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition);
+	void scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successive, double time);
+	
+	int getBlockStr(vector<LyricsBlock>::iterator itr, char *buf) const;
 	
 	void drawGaugeInit();
 	void drawGauge();
 	
-	int getDrawPosX(double timeDiff);
-	int getDrawPosY(int x);
+	int getDrawPosX(double timeDiff) const;
+	int getDrawPosY(int x) const;
 	
 	void draw();
 	void drawResult();
@@ -671,13 +681,15 @@ private:
 	CTrieNode m_trie;
 	
 	vector<Lyrics> m_lyrics;
-	vector<Lyrics>::iterator m_lyricsPosition;
 	
-	vector<Lyrics>::iterator m_lyricsPositionEnd;
+	vector<LyricsBlock> m_lyricsBlock;
+	vector<LyricsBlock>::iterator m_lyricsPosition;
+	
+	vector<LyricsBlock>::iterator m_lyricsPositionEnd;
 	/* Œ»İ‘Å‚Á‚Ä‚¢‚é‰ÌŒ‚ª‚Ç‚±‚Ü‚Å‚©A‚Â‚Ü‚èA[m_lyricsPosition, m_lyricsPositionEnd) */
 	
-	vector<Lyrics>::iterator m_lyricsDrawLeft;
-	vector<Lyrics>::iterator m_lyricsDrawRight;
+	vector<LyricsBlock>::iterator m_lyricsBlockDrawLeft;
+	vector<LyricsBlock>::iterator m_lyricsBlockDrawRight;
 	/* draw‚ÅA’¼‘O‚É•`‰æ‚³‚ê‚½”ÍˆÍ */
 	
 	double m_timeLength;	/* •ˆ–Ê‚ÌiŠÔ‚Ìj’·‚³ */
@@ -753,7 +765,7 @@ CTyping::CTyping(){
 		for(char ch = ' ' + 1; ch < 127; ch++){
 			buf1[0] = ch;
 			buf1[1] = '\0';
-			m_trie.insert(buf2, CConvertData(buf1, buf3));
+			m_trie.insert(buf2, ConvertData(buf1, buf3));
 		}
 	}
 	strcpy(m_name, "");
@@ -793,10 +805,62 @@ void CTyping::loadDictionary(const char *fileName){
 		if(n == 2){
 			strcpy(buf3, "");
 		}
-		m_trie.insert(buf2, CConvertData(buf1, buf3));
+		m_trie.insert(buf2, ConvertData(buf1, buf3));
 		/* “ú–{Œê‚ğƒL[‚Éƒ[ƒ}š‚Ìƒf[ƒ^‚ğ“ü‚ê‚é */
 	}
 	fclose(fp);
+}
+
+void CTyping::addLyrics(const char *buf, double time){
+	m_countAll++;	/* ”»’è‚Ì‚ ‚é‰ÌŒ‚Ì”‚ğ”‚¦‚é */
+	
+	if(!m_lyricsBlock.empty()){	/* ‰ÌŒ‚ª‘¶İ‚µ‚Ä‚¢‚é */
+		LyricsBlock &lb = *(m_lyricsBlock.end() - 1);	/* ‚»‚Ì‚È‚©‚ÅÅŒã‚Ì‚à‚Ì‚ğ‘€ì */
+		if(lb.timeUntil == INFTY){	/* I—¹‚ªİ’è‚³‚ê‚Ä‚¢‚È‚¯‚ê‚ÎAŒ»İ‚Éİ’è */
+			lb.timeUntil = time;
+		}
+	}
+	
+	LyricsBlock lb;
+	lb.lyricsNum = m_lyrics.size();
+	lb.lyricsLen = strlen(buf);
+//printfDx("%d ", lb.lyricsLen);
+	lb.timeJust = time;
+	lb.timeUntil = INFTY;
+	lb.isValid = true;
+	lb.nTyped = 0;
+	lb.isScoringTarget = true;
+	lb.finishedTime = -INFTY;
+	Lyrics ly;
+	ly.blockNum = m_lyricsBlock.size();
+	for(int cnt=0; buf[cnt]!='\0'; cnt++){
+		ly.ch = buf[cnt];
+		ly.blockPos = cnt;
+		m_lyrics.push_back(ly);
+	}
+	m_lyricsBlock.push_back(lb);
+}
+
+void CTyping::addNullLyrics(double time, bool isLast){
+	if(!m_lyricsBlock.empty()){	/* ‰ÌŒ‚ª‘¶İ‚µ‚Ä‚¢‚é */
+		LyricsBlock &lb = *(m_lyricsBlock.end() - 1);	/* ‚»‚Ì‚È‚©‚ÅÅŒã‚Ì‚à‚Ì‚ğ‘€ì */
+		if(lb.timeUntil == INFTY){	/* I—¹‚ªİ’è‚³‚ê‚Ä‚¢‚È‚¯‚ê‚ÎAŒ»İ‚Éİ’è */
+			lb.timeUntil = time;
+		}
+	}
+	
+	LyricsBlock lb;
+	lb.lyricsNum = m_lyrics.size();
+	lb.lyricsLen = 0;	/* u" "‚ª‚ ‚é‚©‚ç1v‚È‚Ç‚ğ‚í‚´‚í‚´‚µ‚È‚­‚Ä‚à‚æ‚¢ */
+	lb.isValid = isLast;	/* ÅŒã‚ÉisValid = true‚Ì”Ô•º‚ğ’u‚­B‚±‚ê‚Í–³ŠQB */
+	lb.timeJust = time;
+	lb.timeUntil = time;
+	lb.isScoringTarget = false;
+	Lyrics ly;
+	ly.blockNum = m_lyricsBlock.size();
+	ly.ch = ' ';	/* ‘Å‚Â‚±‚Æ‚ª‚Å‚«‚È‚¢' '‚ğ”Ô•º‚É‚·‚é */
+	m_lyricsBlock.push_back(lb);
+	m_lyrics.push_back(ly);
 }
 
 void CTyping::load(const char *fumenFileName, const char *rankingFileName){
@@ -810,6 +874,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	
 	/* “Ç‚İ‚Ş‘O‚É‘SÁ‹ */
 	m_lyrics.clear();
+	m_lyricsBlock.clear();
+	
 	m_lyricsKanji.clear();
 	m_beatLine.clear();
 	strcpy(m_musicFileName, "");
@@ -823,144 +889,110 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	/* “Ç‚İ‚İŠJn */
 	
 	char tmpBuf[256];
-	char buf[256], bufLast[256];
-	strcpy(bufLast,"");
-	double time, timeLast;
-	bool flag = true;
-	while(flag){
-		if(fgetline(tmpBuf, fp) == NULL){
-			m_timeLength = timeLast;	/* •ˆ–ÊI—¹‚ğ‹L˜^ */
-			flag = false;
-			time = INFTY;
-		}else{
-			int n;
-			switch(tmpBuf[0]){
-			case '+':	/* ‘Å‚Â‰ÌŒ */
-				if(g_config.f_debugMode && g_config.f_debugBeat){
-					/* ‘Å‚Â‰ÌŒ‚Í‚·‚×‚Ä–³‹ */
-					continue;
-				}
-				n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
-				if(n < 2){
-					throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(+)";
-				}
-				time /= frequencyRate;
-				if(g_config.f_debugMode){
-					/* ‰ÌŒ‚ğ"+"‚Æ‚·‚é */
-					strcpy(buf, "+");
-				}
-				break;
-			case '*':	/* •\¦‚·‚é‰ÌŒ */
-				{
-					char *ptr = strtok(tmpBuf + 1, " \t\n");	/* ƒXƒy[ƒX‚Å‹æØ‚ç‚ê‚é‚Ü‚Å‚Ì•”•ª‚ğæ‚èo‚· */
-					if(ptr == NULL){
-						throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(*)";
-					}
-					n = sscanf(ptr, "%lf", &time);	/* ‚ğ“Ç‚Ş */
-					if(n < 1){
-						throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(*)";
-					}
-					time /= frequencyRate;
-					ptr = strtok(NULL, "");	/* c‚è‚Ì•”•ª‚ğæ‚èo‚· */
-					LyricsKanji lk;
-					strcpy(lk.str, ptr);
-					lk.timeBegin = time;
-					lk.timeEnd = INFTY;	/* I‚í‚è‚ªİ’è‚³‚ê‚È‚¯‚ê‚ÎA•\¦‚³‚ê‘±‚¯‚é */
-					m_lyricsKanji.push_back(lk);
-				}
+	char buf[256];
+	double time;
+	while(fgetline(tmpBuf, fp) != NULL){
+		switch(tmpBuf[0]){
+		case '+':	/* ‘Å‚Â‰ÌŒ */
+		{
+			if(g_config.f_debugMode && g_config.f_debugBeat){
+				/* ‘Å‚Â‰ÌŒ‚Í‚·‚×‚Ä–³‹ */
 				continue;
-			case '=':	/* ¬ßü */
-			case '-':	/* ”ü */
-				{
-					n = sscanf(tmpBuf + 1, "%lf", &time);	/* ‚ğ“Ç‚Ş */
-					if(n < 1){
-						throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(=,-)";
-					}
-					time /= frequencyRate;
-					BeatLine bl;
-					if(tmpBuf[0] == '='){
-						bl.type = BEATLINE_BAR;
-					}else{	/* == '-' */
-						bl.type = BEATLINE_BEAT;
-					}
-					bl.time = time;
-					m_beatLine.push_back(bl);
-				}
-				if(g_config.f_debugMode && g_config.f_debugBeat){
-					strcpy(buf, "+");
-					/* ”qü‚ğ"+"‚Ì‘Å‚Â‰ÌŒ‚Æ‚·‚é */
-					break;
-				}
-				continue;
-			case '/':	/* ‹æØ‚è */
-				n = sscanf(tmpBuf + 1, "%lf", &time);
-				if(n < 1){
-					throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(/)";
-				}
-				time /= frequencyRate;
-				if(!m_lyricsKanji.empty()){	/* •\¦‚·‚é‰ÌŒ‚ª‘¶İ‚µ‚Ä‚¢‚é */
-					LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* ‚»‚Ì‚È‚©‚ÅÅŒã‚Ì‚à‚Ì‚ğ‘€ì */
-					if(lk.timeEnd == INFTY){	/* I—¹‚ªİ’è‚³‚ê‚Ä‚¢‚È‚¯‚ê‚ÎAŒ»İ‚Éİ’è */
-						lk.timeEnd = time;
-					}
-				}
-				if(g_config.f_debugMode && g_config.f_debugBeat){
-					/* ‘Å‚Â‰ÌŒ‚Í‚·‚×‚Ä–³‹‚È‚Ì‚ÅA‹æØ‚è‚à–³‹ */
-					continue;
-				}
-				
-				strcpy(buf, " ");
-				break;
-			case '@':
-				sprintf(m_musicFileName, "%s%s", directoryName, tmpBuf + 1);	/* Ä¶‚·‚é‰¹Šyƒtƒ@ƒCƒ‹–¼‚ğİ’è */
-				continue;
-			default:
-				continue;
+			}
+			int n = sscanf(tmpBuf + 1, "%lf%s", &time, buf);
+			if(n < 2){
+				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(+)";
+			}
+			time /= frequencyRate;
+			if(g_config.f_debugMode){
+				/* ‰ÌŒ‚ğ"+"‚Æ‚·‚é */
+				strcpy(buf, "+");
+			}
+			addLyrics(buf, time);
+		}
+			break;
+		case '*':	/* •\¦‚·‚é‰ÌŒ */
+		{
+			char *ptr = strtok(tmpBuf + 1, " \t\n");	/* ƒXƒy[ƒX‚Å‹æØ‚ç‚ê‚é‚Ü‚Å‚Ì•”•ª‚ğæ‚èo‚· */
+			if(ptr == NULL){
+				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(*)";
+			}
+			int n = sscanf(ptr, "%lf", &time);	/* ‚ğ“Ç‚Ş */
+			if(n < 1){
+				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(*)";
+			}
+			time /= frequencyRate;
+			ptr = strtok(NULL, "");	/* c‚è‚Ì•”•ª‚ğæ‚èo‚· */
+			LyricsKanji lk;
+			strcpy(lk.str, ptr);
+			lk.timeBegin = time;
+			lk.timeEnd = INFTY;	/* I‚í‚è‚ªİ’è‚³‚ê‚È‚¯‚ê‚ÎA•\¦‚³‚ê‘±‚¯‚é */
+			m_lyricsKanji.push_back(lk);
+		}
+			break;
+		case '=':	/* ¬ßü */
+		case '-':	/* ”ü */
+		{
+			int n = sscanf(tmpBuf + 1, "%lf", &time);	/* ‚ğ“Ç‚Ş */
+			if(n < 1){
+				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(=,-)";
+			}
+			time /= frequencyRate;
+			BeatLine bl;
+			if(tmpBuf[0] == '='){
+				bl.type = BEATLINE_BAR;
+			}else{	/* == '-' */
+				bl.type = BEATLINE_BEAT;
+			}
+			bl.time = time;
+			m_beatLine.push_back(bl);
+			if(g_config.f_debugMode && g_config.f_debugBeat){
+				strcpy(buf, "+");
+				/* ”qü‚ğ"+"‚Ì‘Å‚Â‰ÌŒ‚Æ‚·‚é */
 			}
 		}
-		Lyrics ly;
-		ly.isBlockStart = true;
-		ly.finishedTime = -INFTY;
-		ly.isScoringTarget = true;
-		for(char *ptr=bufLast; *ptr!='\0'; ptr++){
-			ly.ch = *ptr;
-			ly.timeJust = timeLast;
-			ly.timeUntil = time;	/* Ÿ‚Ì‰ÌŒ‚ÌtimeJust‚Ü‚Å */
-			if(ly.ch == ' '){
-				ly.timeUntil = -INFTY;
-				ly.isTyped = true;	/* ‹æØ‚ê‚Ì•¶š‚Í‚·‚Å‚É‘Å‚Á‚½‚Æ‚¢‚¤ˆµ‚¢ */
-				ly.isScoringTarget = false;	/* ‹æØ‚è‚ğu‘Å‚Á‚Ä“¾“_‚ğ“¾‚év‚±‚Æ‚Í‚Å‚«‚È‚¢ */
-			}else{
-				ly.isTyped = false;
+			break;
+		case '/':	/* ‹æØ‚è */
+		{
+			int n = sscanf(tmpBuf + 1, "%lf", &time);
+			if(n < 1){
+				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(/)";
 			}
-			m_lyrics.push_back(ly);
-			
-			if(ly.isScoringTarget){	/* ”»’è‚Ì‚ ‚é‰ÌŒ‚Ì”‚ğ”‚¦‚é */
-				m_countAll++;
+			time /= frequencyRate;
+			if(!m_lyricsKanji.empty()){	/* •\¦‚·‚é‰ÌŒ‚ª‘¶İ‚µ‚Ä‚¢‚é */
+				LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* ‚»‚Ì‚È‚©‚ÅÅŒã‚Ì‚à‚Ì‚ğ‘€ì */
+				if(lk.timeEnd == INFTY){	/* I—¹‚ªİ’è‚³‚ê‚Ä‚¢‚È‚¯‚ê‚ÎAŒ»İ‚Éİ’è */
+					lk.timeEnd = time;
+				}
+			}
+			if(g_config.f_debugMode && g_config.f_debugBeat){
+				/* ‘Å‚Â‰ÌŒ‚Í‚·‚×‚Ä–³‹‚È‚Ì‚ÅA‹æØ‚è‚à–³‹ */
+				continue;
 			}
 			
-			ly.isBlockStart = false;	/* Å‰‚Ì•¶š‚Ì‚İ‚ğ true ‚É‚·‚é‚½‚ß */
-			ly.isScoringTarget = false;
+			addNullLyrics(time, false);
 		}
-		timeLast = time;
-		strcpy(bufLast, buf);
+			break;
+		case '@':
+			sprintf(m_musicFileName, "%s%s", directoryName, tmpBuf + 1);	/* Ä¶‚·‚é‰¹Šyƒtƒ@ƒCƒ‹–¼‚ğİ’è */
+			continue;
+		default:
+			continue;
+		}
 	}
 	fclose(fp);
-	/* ‘Å‚Â‰ÌŒ‚Ì”Ô•º‚Æ‚µ‚ÄÅŒã‚É' ',INFTY‚ğ’Ç‰Á‚µ‚Ä‚¨‚­ */
-	{
-		Lyrics ly;
-		ly.ch = ' ';
-		ly.timeJust = INFTY;
-		ly.timeUntil = INFTY;
-		ly.isBlockStart = true;
-		ly.isTyped = true;
-		ly.isScoringTarget = false;
-		m_lyrics.push_back(ly);
-		
-		/* ' '‚È‚ç1‚Âi‚Ş‚±‚Æ‚Ö‚Ì‘Îô‚Æ‚µ‚ÄA'\n'‚ğ’Ç‰Á‚µ‚Ä‚¨‚­ */
-		ly.ch = '\n';
-		m_lyrics.push_back(ly);
+	if(m_lyricsBlock.empty()){
+		//throw "[•ˆ–Ê] ƒf[ƒ^‚ª‚ ‚è‚Ü‚¹‚ñB";
+		m_timeLength = 0.0;
+	}else{
+		m_timeLength = (*(m_lyricsBlock.end() - 1)).timeJust;	/* •ˆ–ÊI—¹‚ğ‹L˜^ */
+		/* y‚±‚ê‚ÍAÅŒã‚É'/'‚ª‚ ‚é‚±‚Æ‚ğ‘O’ñ‚Æ‚µ‚Ä‚¢‚éz */
 	}
+	
+	/* ‘Å‚Â‰ÌŒ‚Ì”Ô•º‚Æ‚µ‚ÄÅŒã‚É' ',INFTY‚ğ’Ç‰Á‚µ‚Ä‚¨‚­ */
+	addNullLyrics(INFTY, false);
+	/* !isValid‚È‚ç1‚Âi‚Ş‚±‚Æ‚Ö‚Ì‘Îô‚Æ‚µ‚ÄAisValid‚È‚Ì‚ğ’Ç‰Á‚µ‚Ä‚¨‚­ */
+	addNullLyrics(INFTY, true);
 	
 	/* •\¦‚·‚é‰ÌŒ‚Ì”Ô•º‚Æ‚µ‚ÄA"",INFTY‚ğ’Ç‰Á */
 	{
@@ -979,13 +1011,17 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	}
 	
 	/* Œ»İ‘Å‚Á‚Ä‚¢‚é‰ÌŒ‚ÌˆÊ’u */
-	m_lyricsPosition = m_lyrics.begin();
+	m_lyricsPosition = m_lyricsBlock.begin();
+	while(!(*m_lyricsPosition).isValid){
+		m_lyricsPosition++;
+	}
+	
 	m_lyricsKanjiPosition = m_lyricsKanji.begin();
 	
 	m_lyricsPositionEnd = m_lyricsPosition;	/* Å‰‚Í”ÍˆÍ‚È‚µ‚Æ‚¢‚¤‚±‚Æ‚É‚µ‚Ä‚¨‚±‚¤ */
 	
-	m_lyricsDrawLeft = m_lyrics.begin();
-	m_lyricsDrawRight = m_lyrics.begin();
+	m_lyricsBlockDrawLeft = m_lyricsBlock.begin();
+	m_lyricsBlockDrawRight = m_lyricsBlockDrawLeft;
 	/* Å‰‚Ìdraw‚Åİ’è‚³‚ê‚é‚©‚ç‰½‚ğ“ü‚ê‚Ä‚à‚æ‚¢‚Ì‚¾‚ªA */
 	/* ‰E‚É‚µ‚©i‚Ü‚È‚¢‚Ì‚ÅÅ‰‚É‚µ‚Ä‚¨‚©‚È‚¯‚ê‚Î‚È‚ç‚È‚¢ */
 	
@@ -1070,31 +1106,7 @@ void CTyping::keyboard(char ch, double timeCount){
 		if(time < 2.0){	/* I—¹’¼Œã‚ÌŒë‘€ì‚ğ–h~ */
 			return;
 		}
-#if 0
-		if(ch < CTRL_CODE_CMP){	/* •¶šƒR[ƒh‚Å‚È‚¢‚Æ‚« */
-			switch(ch){
-			case CTRL_CODE_CR:	/* ‰üs‚È‚çŠm’è */
-				if(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode){
-					/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡Aƒ‰ƒ“ƒLƒ“ƒO‚É‚Ì‚¹‚È‚¢ */
-					/* ƒŠƒvƒŒƒC‚âƒfƒoƒbƒO‚Í‹L˜^‚µ‚È‚¢ */
-					phase(PHASE_FINISHED);
-				}else{	/* ƒŠƒvƒŒƒCEƒfƒoƒbƒOƒ‚[ƒh */
-					if(m_typeBufferLen > 0){	/* –¼‘O‚ª“ü—Í‚³‚ê‚Ä‚¢‚é‚©Šm”F */
-						phase(PHASE_FINISHED);
-					}
-				}
-				break;
-			case CTRL_CODE_BS:	/* BackSpace‚â¶ƒL[‚âDelete‚È‚ç */
-			case CTRL_CODE_LEFT:
-			case CTRL_CODE_DEL:
-				if(m_typeBufferLen > 0){
-					m_typeBufferLen--;	/* ˆê•¶šíœ */
-				}
-				break;
-			}
-			return;
-		}
-#endif
+
 		if(ch == ' '){	/* ƒXƒy[ƒX‚ÍƒAƒ“ƒ_[ƒo[‚É•ÏŠ·iƒXƒy[ƒX‚Ì‚İ‚Ìˆá‚¢‚ğì‚ç‚È‚¢‚½‚ßj */
 			ch = '_';
 		}
@@ -1127,12 +1139,6 @@ void CTyping::keyboard(char ch, double timeCount){
 			break;
 		}
 		return;
-#if 0
-		if(m_typeBufferLen < TYPE_BUFFER_LEN){
-			m_typeBuffer[m_typeBufferLen++] = ch;
-		}
-		return;
-#endif
 	}
 	if(m_phase == PHASE_FINISHED){	/* ƒ‰ƒ“ƒLƒ“ƒO•\¦’†‚È‚ç */
 		if(ch == CTRL_CODE_CR){	/* Enter‚ÅI—¹ */
@@ -1152,6 +1158,11 @@ void CTyping::keyboard_1(char ch, double time){
 		return;
 	}
 	
+	if(time >= m_timeLength){	/* I—¹‚µ‚Ä‚¢‚é */
+		return;
+	}
+	
+//printf("%c %f\n", ch, time);
 	if(time < (*m_lyricsPosition).timeJust - SEC_POOR){
 		/* poor‚æ‚è‘O‚È‚Ì‚Å‘Å‚Ä‚È‚¢ */
 		return;
@@ -1159,7 +1170,8 @@ void CTyping::keyboard_1(char ch, double time){
 	
 	m_typeBuffer[m_typeBufferLen++] = ch;
 	
-	if(input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, time, false)){
+	if(input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time, false)){
+//printf("ok\n");
 	/* ‚»‚Ì“ü—Í‚ªŒ»İ‚ÌˆÊ’u‚Å“ü‚Á‚½ */
 		if(!m_isReplay){	/* ƒŠƒvƒŒƒC‚É‹L˜^ */
 			ReplayData rd;
@@ -1170,7 +1182,7 @@ void CTyping::keyboard_1(char ch, double time){
 		/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 		m_effect1.insert(X_CIRCLE, Y_CIRCLE, ch, GetColor(170, 170, 255), time);
 		
-		while((*m_lyricsPosition).ch == ' '){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
+		while(!(*m_lyricsPosition).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
 			m_lyricsPosition++;	/* i‚ß‚é */
 		}
 		return;
@@ -1178,28 +1190,33 @@ void CTyping::keyboard_1(char ch, double time){
 	m_typeBufferLen--;
 	char tmpBuffer[TYPE_BUFFER_LEN + 1];
 	int tmpLen;
-	vector<Lyrics>::iterator tmpLyricsPosition;
+	vector<LyricsBlock>::iterator tmpLyricsPosition;
 	tmpBuffer[0] = ch;
 	tmpLen = 1;
 	tmpLyricsPosition = m_lyricsPosition;
 	
-	int comboBackUp = m_combo;	/* m_combo‚ğ•Û‘¶‚µ‚Ä‚¨‚­ */
-	m_combo = 0;
 	while(1){
+//printf("loop\n");
 		tmpLyricsPosition++;	/* •K‚¸1‚ÂˆÈã”ò‚Î‚·•K—v‚ª‚ ‚é‚Ì‚ÅÅ‰‚É++ */
-		if(!(*tmpLyricsPosition).isBlockStart){
-			continue;
-		}
-		if(time >= (*tmpLyricsPosition).timeUntil){
-			/* ”ò‚Î‚µ‚ÄA‚©‚ÂAŠÔØ‚ê‚Í‘Å‚Ä‚È‚¢ */
-			/* ‚±‚±‚Å‚Í‚¶‚©‚È‚­‚Ä‚àAinput‚Å‚Í‚¶‚¯‚é‚ªAˆ—‚Ìd‚³‚ª‹C‚É‚È‚è‚»‚¤ */
-			continue;
-		}
 		if(time < (*tmpLyricsPosition).timeJust - SEC_POOR){
 			/* poor”ÍˆÍ‚É“ü‚Á‚Ä‚¢‚é‚Æ‚±‚ë‚æ‚èŠO‚É’Tõ‚ªo‚½ */
 			break;
-		} 
-		if(input(tmpBuffer, tmpLen, tmpLyricsPosition, time, false)){
+		}
+		if(!(*tmpLyricsPosition).isScoringTarget){
+			/* ‚·‚Å‚Éƒ^ƒCƒ~ƒ“ƒO‚ªÌ“_‚³‚ê‚½‚Æ‚±‚ë‚âA‹æØ‚è */
+			continue;
+		}
+#if 0
+		if(!(*tmpLyricsPosition).isValid){	/* ‹æØ‚è‚È‚Ç */
+			continue;
+		}
+#endif
+		if(time >= (*tmpLyricsPosition).timeUntil){
+			/* ”ò‚Î‚µ‚ÄA‚©‚ÂAŠÔØ‚ê‚Í‘Å‚Ä‚È‚¢ */
+			continue;
+		}
+		if(input(tmpBuffer, tmpLen, tmpLyricsPosition, false, time, false)){
+//printf("ok\n");
 		/* V‚µ‚¢ˆÊ’u‚Å‚»‚Ì“ü—Í‚ª“ü‚Á‚½ */
 			if(!m_isReplay){	/* ƒŠƒvƒŒƒC‚É‹L˜^ */
 				ReplayData rd;
@@ -1212,15 +1229,15 @@ void CTyping::keyboard_1(char ch, double time){
 			
 			/* V‚µ‚¢ƒf[ƒ^‚ğ‘‚«‚Ş */
 			strcpy(m_typeBuffer, tmpBuffer);
-			m_typeBufferLen = tmpLen;	/* 1‚Æ‚ÍŒÀ‚ç‚È‚¢‚Í‚¸‚È‚Ì‚Å */
+			m_typeBufferLen = tmpLen;	/* 1‚Æ‚ÍŒÀ‚ç‚È‚¢‚Ì‚Å */
 			m_lyricsPosition = tmpLyricsPosition;
-			while((*m_lyricsPosition).ch == ' '){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
+			while(!(*m_lyricsPosition).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
 				m_lyricsPosition++;	/* i‚ß‚é */
 			}
-			return;	/* m_combo‚ÍŒ³‚É–ß‚³‚È‚¢ */
+			return;
 		}
 	}
-	m_combo = comboBackUp;	/* m_combo‚ğŒ³‚É–ß‚· */
+//printf("ng\n");
 	return;
 }
 
@@ -1253,6 +1270,7 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 		return true;
 	}
 	
+//printf("idle[");
 	double time = getTime(timeCount);
 	bool flag = false;	/* m_lyricsPositionEnd‚ª•Ï‰»‚µ‚½‚©A */
 	/* ‚Â‚Ü‚èA‘Å‚Ä‚È‚­‚È‚Á‚½‚±‚Æ‚ÌÄƒ`ƒFƒbƒN‚ª•K—v‚© */
@@ -1268,15 +1286,19 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 		flag = true;
 	}
 	
+	if((*m_lyricsPosition).timeJust == INFTY){
+		/* ÅŒã‚ÌisValid = true‚È‚Ì‚É”Ô•º‚È‚â‚Â‚Ì‘Îô */
+		flag = false;
+	}
+	
 	if(flag){	/* –ˆ‰ñƒ`ƒFƒbƒN‚·‚é‚Æd‚¢‚©‚à‚µ‚ê‚È‚¢‚Ì‚ÅA•K—v‚È‚Æ‚«‚ÉŒÀ’è‚·‚é */
 		/* u‰½‚©‚ÌƒL[‚ğ‰Ÿ‚¹‚ÎŒ»İ‚ÌˆÊ’u‚Å“ü—Í‰Â”\v‚Å‚Í‚È‚¢ */
-		if(!input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, time, true)){
+		if(!input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time, true)){
+			/* f_successive‚ªtrue‚È‚Ì‚É“Á‚ÉˆÓ–¡‚Í‚È‚¢ */
 			/* “ü—Í‚ªØ‚ê‚½‚à‚Ì‚Í”ò‚Î‚·im_lyricsPosition‚ªi‚ñ‚ÅAƒRƒ“ƒ{‚ªØ‚ê‚éj */
-			if(time >= (*m_lyricsPosition).timeUntil){
-				/* ‚í‚´‚í‚´i‚Ş‚©‚Ç‚¤‚©ƒ`ƒFƒbƒN‚µ‚Ä‚¢‚é‚Ì‚ÍAÅŒã‚Ì'\n'‚É‚¢‚é‚Æ‚«‚ğœ‚­‚½‚ß */
-				do{
+			while(time >= (*m_lyricsPosition).timeUntil){
 				m_lyricsPosition++;
-				}while(time >= (*m_lyricsPosition).timeUntil);
+				
 				/* –{“–‚Ém_lyricsPosition‚ªi‚ñ‚¾‚çA‚±‚±‚É—ˆ‚é */
 				m_combo = 0;
 				m_typeBufferLen = 0;
@@ -1285,7 +1307,8 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 		}
 	}
 	
-	if(time >= m_timeLength){	/* ÅŒã‚Ì•ˆ–Ê‚ª’Ê‰ß */
+//printf("]\n");
+	if(time >= m_timeLength + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
 		phase(PHASE_RESULT);
 		return true;
 	}
@@ -1357,11 +1380,11 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 	m_timeBegin += diff;
 }
 
-double CTyping::getTime(){	/* ŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
+double CTyping::getTime() const{	/* ŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
 	return myGetNowHiPerformanceCount() - m_timeBegin;
 }
 
-double CTyping::getTime(double timeCount){	/* timeCount‚ÌŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
+double CTyping::getTime(double timeCount) const{	/* timeCount‚ÌŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
 	return timeCount - m_timeBegin;
 }
 
@@ -1404,41 +1427,47 @@ void CTyping::phase(int phaseNum){
 
 /* ------------------------------------------------------------ */
 
-bool CTyping::input(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPosition,
-		double time, bool isCheckOnly){
+bool CTyping::input(char *typeBuffer, int &typeBufferLen, vector<LyricsBlock>::iterator &lyricsPosition,
+		bool f_successive, double time, bool isCheckOnly){
 	typeBuffer[typeBufferLen] = '\0';
 	/* typeBufferLen‚ğuÀÛ‚É‘Å‚Á‚½’·‚³v‚Æ‚µ‚Ä—p‚¢‚é‚½‚ß */
 	/* ‚±‚ê‚ğ‘‚¢‚Ä‚¨‚©‚È‚¢‚Æƒoƒbƒtƒ@ƒI[ƒo[ƒ‰ƒ“‚ª‹N‚«‚é */
+	vector<Lyrics>::iterator lyricsPos = &m_lyrics[(*lyricsPosition).lyricsPos()];
 	
+	bool ret;
 	if(isCheckOnly){
-		int tmpTypeBufferLen = typeBufferLen + 1;	/* typeBufferLen‚ÍXV‚µ‚È‚¢–â‘è‚È‚µ */
+		int tmpTypeBufferLen = typeBufferLen + 1;	/* typeBufferLen‚ÍXV‚µ‚È‚¢‚Ì‚Å–â‘è‚È‚µ */
 		/* ÀÛ‚É‘Å‚Á‚½’·‚³‚ğ1‚Â‘½‚­‚·‚é‚±‚Æ‚É‚æ‚Á‚ÄA”CˆÓ‚Ì1•¶š‚³‚ç‚É‘Å‚Á‚½‚Æ‚µ‚ÄŠÔ§ŒÀ‚ğ”»’è‚·‚é */
-		return input_1(typeBuffer, tmpTypeBufferLen, lyricsPosition, time, true, false);
+		ret = input_1(typeBuffer, tmpTypeBufferLen, lyricsPos, f_successive, time, true, false);
 		/* ÅŒã‚Ìfalse‚ÍÄ‹A‚Å‚È‚¢‚±‚Æ‚ğ¦‚·B */
 	}else{
-		return input_1(typeBuffer, typeBufferLen, lyricsPosition, time, false, false);
+		ret = input_1(typeBuffer, typeBufferLen, lyricsPos, f_successive, time, false, false);
+		lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
+			/* V‚µ‚¢‰ÌŒ‚ÌˆÊ’u‚É */
+		
 	}
+	return ret;
 }
 
-bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPosition,
-		double time, bool isCheckOnly, bool isSaiki){
+bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPos,
+		bool f_successive, double time, bool isCheckOnly, bool isSaiki){
 /* isSaiki‚ÍŠO‚©‚ç‚ÌŒÄ‚Ño‚µ‚Å‚Ífalse,“à‚©‚ç‚ÌŒÄ‚Ño‚µ‚Å‚Ítrue */
 	if(isSaiki && strlen(typeBuffer) == 0){
 	/* –¢Šm’èƒ[ƒ}š‚ª‚È‚¢‚Ì‚ÉÄ‹A‚µ‚½ */
 		return true;
 	}
-	vector<Lyrics>::iterator tmpLyricsPosition = lyricsPosition;
+	vector<Lyrics>::iterator tmpLyricsPos = lyricsPos;
 	CTrieNode *trie = &m_trie;
 	while(1){
 		char buf[2];
-		buf[0] = (*tmpLyricsPosition).ch;
-		tmpLyricsPosition++;
+		buf[0] = (*tmpLyricsPos).ch;
+		tmpLyricsPos++;
 		buf[1] = '\0';
 		trie = trie->find(buf);	/* “ú–{Œê1ƒoƒCƒgi‚Ş */
 		if(trie == NULL){	/* trie‚ğ‚½‚Ç‚ê‚È‚¢A‚Â‚Ü‚èA‚Ü‚Æ‚ß‚Ä‘Å‚Ä‚é”ÍˆÍ‚ğ’´‚¦‚½B */
 			return false;
 		}
-		for(vector<CConvertData>::iterator i = trie->m_data.begin();
+		for(vector<ConvertData>::iterator i = trie->m_data.begin();
 				i != trie->m_data.end(); i++){	/* ƒ[ƒ}šŒó•â‚ğ’Tõ */
 			if((*i).match_front(typeBuffer)){
 				int tmpLen = typeBufferLen - (*i).m_len;
@@ -1446,14 +1475,14 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 				/* ‚±‚ê‚Í•‰‚Æ‚©‚É‚È‚è‚¤‚éB */
 				if(tmpLen <= 0){	/* ¡‰ñ‚É•K—v‚È‚çƒL[‚ğ‘«‚µ‚Äˆê“x‚É‘Å‚Ä‚é”ÍˆÍ‚Í‚±‚±‚Ü‚Å */
 				/* ‚±‚ê‚ÍA{‚ñ‚Îcc,nbcc}‚Ån‚¾‚¯‘Å‚Á‚½ó‹µ‚È‚Ç‚àŠÜ‚Ü‚ê‚éB */
-					if(time >= (*(tmpLyricsPosition-1)).timeUntil){
+					if(time >= m_lyricsBlock[(*(tmpLyricsPos-1)).blockNum].timeUntil){
 						/* ‚»‚ÌÅŒã‚Ì•¶š‚ªŠÔØ‚ê‚µ‚Ä‚¢‚Ä‚Í‚¢‚¯‚È‚¢ */
 						continue;
 					}
 				}
 				char tmpTypeBuffer[TYPE_BUFFER_LEN + 1];
 				strcpy(tmpTypeBuffer, (*i).m_str + (*i).m_len);	/* –¢Šm’èƒ[ƒ}š‚É‚È‚é—\’è‚Ì•”•ª */
-				if(input_1(tmpTypeBuffer, tmpLen, tmpLyricsPosition, time, isCheckOnly, true)){
+				if(input_1(tmpTypeBuffer, tmpLen, tmpLyricsPos, f_successive, time, isCheckOnly, true)){
 				/* Ä‹A‚ÌŒ‹‰Ê‘Å‚Ä‚é‚±‚Æ‚ª•ª‚©‚Á‚½‚Æ‚« */
 					if(isCheckOnly){	/* ’²‚×‚é‚½‚ß‚Ì‚Æ‚«‚ÍA‰½‚à‚µ‚È‚¢B */
 						return true;
@@ -1461,29 +1490,25 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 					/* ’²‚×‚é‚½‚ß‚Å‚Í‚È‚­AÀÛ‚É‘Å‚Á‚Ä‚¢‚é‚Æ‚« */
 					if(typeBufferLen >= 1){
 					/* V‚µ‚¢‰¹ß‚Ì‘Å‚¿n‚ß */
-						scoreAccuracy(time, lyricsPosition);
+						scoreAccuracy(lyricsPos, f_successive, time);
 						/* ‚¿‚å‚¤‚Ç‚Ìƒ^ƒCƒ~ƒ“ƒO‚Æ‚Ì‚¸‚ê‚©‚çŒvZ‚µ‚½“¾“_‚ğ—^‚¦‚éB */
 					}
 					
 					/* u‚Áv‚Ìˆ—A‘S‚Ä‚Ì3ƒoƒCƒgˆÈã‚Ö‚Ì•ÏŠ·‚ÉŒø‰Ê‚ª‚ ‚é‚Ì‚Å’ˆÓ */
 					/* y ‚Ä‚©A‚±‚ê‚ÍAconvert.dat‚ğŠg’£‚µA‚±‚±‚Å—áŠOˆ—‚µ‚È‚­‚Ä‚àÏ‚Ş‚æ‚¤‚É‚µ‚½‚¢ z */
-					if(typeBufferLen >= 2 && lyricsPosition + 2 < tmpLyricsPosition){
+					if(typeBufferLen >= 2 && tmpLyricsPos - lyricsPos > 3){
 					/* 2•¶š‘Å‚Á‚ÄA2ƒoƒCƒgæ(“ú–{Œê‚Ì1•¶šæ)‚ª¡‰ñˆê“x‚É‘Å‚Ä‚é”ÍˆÍ‚ÅA‚³‚ç‚ÉÌ“_‘ÎÛ‚Å‚ ‚é */
 					/* ‚Â‚Ü‚èAu‚Á‚©v‚É‚¨‚¯‚é"kk"‚Ì“_‚Åu‚©v‚ªÌ“_‚³‚ê‚éB */
-						scoreAccuracy(time, lyricsPosition + 2);
+						scoreAccuracy(lyricsPos + 2, f_successive, time);
 						/* ‚¿‚å‚¤‚Ç‚Ìƒ^ƒCƒ~ƒ“ƒO‚Æ‚Ì‚¸‚ê‚©‚çŒvZ‚µ‚½“¾“_‚ğ—^‚¦‚éB */
 					}
 					if((*i).match(typeBuffer)){	/* Š®‘Sˆê’v */
 						/* •ÏŠ·‚³‚ê‚½‰ÌŒ‚Ì•ª‚¾‚¯“¾“_‚ğ—^‚¦‚é */
 						if(!isSaiki){
 						/* Ä‹A‚Ì2’i–ÚˆÈ~‚Å‚àƒ^ƒCƒsƒ“ƒO“_‚ğŒvZ‚·‚é‚Æ2d‚É‚È‚é‚Ì‚ÅA’¼Ú‚ÌŒÄ‚Ño‚µ‚Ì‚İˆ— */
-							scoreTyping(lyricsPosition, tmpLyricsPosition);
+							scoreTyping(lyricsPos, tmpLyricsPos);
 						}
-						
-						for(vector<Lyrics>::iterator i = lyricsPosition; i != tmpLyricsPosition; i++){
-							(*i).isTyped = true;	/* ‘Å‚Á‚½‰ÌŒ‚Ì”ÍˆÍ‚ğ‹L˜^ */
-						}
-						lyricsPosition = tmpLyricsPosition;	/* V‚µ‚¢‰ÌŒ‚ÌˆÊ’u‚É */
+						lyricsPos = tmpLyricsPos;	/* ‚Ç‚±‚Ü‚Ås‚Á‚½‚©‚ğ–ß‚· */
 						strcpy(typeBuffer, tmpTypeBuffer);
 						typeBufferLen = tmpLen;
 					}
@@ -1503,11 +1528,15 @@ void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iter
 /* [lyBegin, lyEnd)‚ğ‘Å‚Á‚½‚Æ‚«‚Ì“¾“_ */
 	bool isJapanese2 = false;
 	for(vector<Lyrics>::iterator i = lyBegin; i != lyEnd; i++){
+		vector<LyricsBlock>::iterator lyricsPosition = &m_lyricsBlock[(*i).blockNum];
+		if((*lyricsPosition).nTyped <= (*i).blockPos){
+			(*lyricsPosition).nTyped = (*i).blockPos + 1;	/* ‘Å‚Á‚½”ÍˆÍ‚ğ‹L˜^ */
+		}
 		if(isJapanese2){
 			isJapanese2 = false;
 		}else{
 			m_scoreTyping += SCORE_TYPING;
-			if((*i).isJapanese1()){	/* “ú–{Œê‚Ì1ƒoƒCƒg–Ú‚È‚ç */
+			if(isJapanese1st((*i).ch)){	/* “ú–{Œê‚Ì1ƒoƒCƒg–Ú‚È‚ç */
 				isJapanese2 = true;
 			}
 		}
@@ -1515,11 +1544,18 @@ void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iter
 	m_score = m_scoreTyping + m_scoreAccuracy;
 }
 
-void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition){
+void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successive, double time){
+	vector<LyricsBlock>::iterator lyricsPosition;
+	lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
 	if(!(*lyricsPosition).isScoringTarget){
 	/* ƒ^ƒCƒ~ƒ“ƒO‚ÌÌ“_‘ÎÛ‚Å‚Í‚È‚¢A‚Ü‚½‚ÍA‚à‚¤Ì“_‚³‚ê‚½ */
 		return;
 	}
+	
+	if(!f_successive){
+		m_combo = 0;
+	}
+	
 	double timeDiff = time - (*lyricsPosition).timeJust;
 //#ifdef DEBUG_MODE
 	double tmp = timeDiff;
@@ -1613,6 +1649,18 @@ void CTyping::scoreAccuracy(double time, vector<Lyrics>::iterator lyricsPosition
 	(*lyricsPosition).isScoringTarget = false;	/* 2‰ñˆÈã“¾“_‚ğ—^‚¦‚ç‚ê‚é‚±‚Æ‚Í‚È‚¢ */
 	(*lyricsPosition).scoringTime = time;	/* “¾“_‚ª‚Â‚¯‚ç‚ê‚½‚ğ‹L˜^ */
 }
+
+/* ------------------------------------------------------------ */
+
+int CTyping::getBlockStr(vector<LyricsBlock>::iterator itr, char *buf) const{
+	int len = 0;
+	for(int j=(*itr).nTyped; j<(*itr).lyricsLen; j++){	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
+		buf[len++] = m_lyrics[(*itr).lyricsNum + j].ch;
+	}
+	return len;
+}
+
+/* ------------------------------------------------------------ */
 
 void CTyping::drawGaugeInit(){
 	for(int i=0; i<4; i++){	/* Å‰‚Ì’l */
@@ -1721,12 +1769,12 @@ void CTyping::drawGauge(){	/* ƒQ[ƒW‚ğ•\¦ */
 /* ------------------------------------------------------------ */
 
 /* timeDiff: ‚¿‚å‚¤‚Ç‚ÌˆÊ’u‚Ì‰½•bŒã‚© */
-int CTyping::getDrawPosX(double timeDiff){
+int CTyping::getDrawPosX(double timeDiff) const{
 	/* CIRCLE_SPEED * m_challenge.speed() ‚ª‘¬‚³Ai‚½‚¾‚µA¶Œü‚«j */
 	return X_CIRCLE + (int)(-timeDiff * (CIRCLE_SPEED * m_challenge.speed()));
 }
 
-int CTyping::getDrawPosY(int x){
+int CTyping::getDrawPosY(int x) const{
 	x -= X_CIRCLE;	/* ‰æ–Ê‚Ì0‚ğÀ•W‚Ì0‚Æ‚ ‚í‚¹‚é */
 	double y = 0;
 	if(m_challenge.test(CHALLENGE_SIN)){
@@ -1818,12 +1866,8 @@ void CTyping::draw(){
 		}
 		SetDrawArea(xMin, 0, xMax, H_WINDOW);	/* •`‰æ”ÍˆÍ‚ğ§ŒÀ */
 		
-		while((*m_lyricsDrawLeft).timeJust != INFTY){
-			if(!(*m_lyricsDrawLeft).isBlockStart){	/* ‰¹ß‚ÌÅ‰‚Å‚È‚¢‚È‚çi‚ß‚Ä‚æ‚¢ */
-				m_lyricsDrawLeft++;
-				continue;
-			}
-			double timeDiff = time - (*m_lyricsDrawLeft).timeJust;
+		while((*m_lyricsBlockDrawLeft).timeJust != INFTY){
+			double timeDiff = time - (*m_lyricsBlockDrawLeft).timeJust;
 			int posX = getDrawPosX(timeDiff);
 			if(posX >= -(R_CIRCLE + 300)){
 				/* ‰~‚ğ‚Í‚İo‚é‰ÌŒ‚âA‘Å‚¿Ø‚Á‚Ä’µ‚Ë‚é‚±‚Æ‚ğl—¶‚µ‚ÄL‚ß‚Éæ‚é */
@@ -1831,34 +1875,27 @@ void CTyping::draw(){
 				break;
 			}
 			/* ‚·‚Å‚É‰æ–Ê‚©‚ço‚Ä‚µ‚Ü‚Á‚½‚Ì‚ÅA•`‰æ‘ÎÛ‚©‚çíœ */
-			m_lyricsDrawLeft++;
+			m_lyricsBlockDrawLeft++;
 		}
 		
-		while((*m_lyricsDrawRight).timeJust != INFTY){
-			if(!(*m_lyricsDrawRight).isBlockStart){	/* ‰¹ß‚ÌÅ‰‚Å‚È‚¢‚È‚çi‚ß‚Ä‚æ‚¢ */
-				m_lyricsDrawRight++;
-				continue;
-			}
-			double timeDiff = time - (*m_lyricsDrawRight).timeJust;
+		while((*m_lyricsBlockDrawRight).timeJust != INFTY){
+			double timeDiff = time - (*m_lyricsBlockDrawRight).timeJust;
 			int posX = getDrawPosX(timeDiff);
 			if(posX >= W_WINDOW + R_CIRCLE){
 				/* ‰æ–Ê‚É“ü‚Á‚Ä‚«‚Ä‚¢‚È‚¢ */
 				break;
 			}
 			/* V‚µ‚­‰æ–Ê‚É“ü‚Á‚Ä‚«‚½‚Ì‚ÅA•`‰æ‘ÎÛ‚É’Ç‰Á */
-			m_lyricsDrawRight++;
+			m_lyricsBlockDrawRight++;
 		}
 		
-		for(vector<Lyrics>::iterator i = m_lyricsDrawRight; i != m_lyricsDrawLeft;){
+		for(vector<LyricsBlock>::iterator i = m_lyricsBlockDrawRight; i != m_lyricsBlockDrawLeft;){
 			i--;	/* [Left, Right)‚È‚Ì‚ÅA‚±‚±‚ÅƒfƒNƒŠƒƒ“ƒg */
-			if(!(*i).isBlockStart){	/* ‰¹ß‚ÌÅ‰‚Å‚È‚¢‚È‚ç–³‹ */
-				continue;
-			}
 			double timeDiff = time - (*i).timeJust;	/* ‚¿‚å‚¤‚Ç‘Å‚ÂˆÊ’u‚É‚È‚Á‚Ä‚©‚ç‰½•bŒã‚© */
 			int posX = getDrawPosX(timeDiff);
 			int posY = getDrawPosY(posX);
 			
-			if((*i).ch == ' '){	/* ‰ÌŒ‚ÌØ‚ê–Ú */
+			if(!(*i).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú */
 				if(timeDiff < 0.0){	/* Ø‚ê–Ú‚Í”»’èˆÊ’u‚É—ˆ‚é‚æ‚è‘O‚Ì‚Æ‚«‚¾‚¯•\¦ */
 					DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(128, 128, 128), FALSE);
 					/* ŠDF‚Ì‰~‚ğ—¬‚· */
@@ -1867,16 +1904,7 @@ void CTyping::draw(){
 			}
 			
 			char buf[256];
-			int len = 0;
-			{
-				vector<Lyrics>::iterator j = i;
-				do{	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
-					if(!(*j).isTyped){
-						buf[len++] = (*j).ch;
-					}
-					j++;
-				}while(!(*j).isBlockStart);
-			}
+			int len = getBlockStr(i, buf);	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
 			buf[len] = '\0';
 			if(len == 0){	/* ‚·‚×‚Äƒ^ƒCƒv‚³‚ê‚Ä‚¢‚½ */
 				if((*i).finishedTime < 0){
@@ -2020,10 +2048,8 @@ void CTyping::draw(){
 				&& m_typeBufferLen == 0 )){
 			char buf[256];
 			int len = 0;
-			for(vector<Lyrics>::iterator i = m_lyricsPosition; i != m_lyricsPositionEnd; i++){
-				if((*i).ch != ' '){
-					buf[len++] = (*i).ch;
-				}
+			for(vector<LyricsBlock>::iterator i = m_lyricsPosition; i != m_lyricsPositionEnd; i++){
+				len += getBlockStr(i, &buf[len]);
 			}
 			buf[len] = '\0';
 			//int strWidth = GetDrawStringWidthToHandle(buf, len, m_fontHandleBig);
@@ -2069,6 +2095,16 @@ void CTyping::draw(){
 	}
 	
 	m_effect1.draw(time);	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
+	
+	if(time >= m_timeLength){	/* ƒtƒF[ƒhƒAƒEƒg */
+		double xTime = (time - m_timeLength) / SEC_FADEOUT;
+		if(xTime >= 1.0){
+			xTime = 1.0;
+		}
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * xTime);
+		DrawBox(0, 0, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
+		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+	}
 }
 
 void CTyping::drawResult(){
@@ -2689,7 +2725,7 @@ void DrawMainInfo::reset(){
 	for(int i=-10; i<=10; i++){
 		addHeight[i] = 0;
 	}
-	addHeightWait = 0;
+	addHeightWait = 25;
 }
 
 void DrawMainInfo::step(){
@@ -2703,9 +2739,9 @@ void DrawMainInfo::step(){
 			}else{
 				h = H_COMMENT;
 			}
-			if(addHeight[0] == 0 && addHeightWait < 25){
+			if(addHeight[0] == 0 && addHeightWait > 0){
 			/* •0‚©‚çŠJ‚±‚¤‚Æ‚µ‚Ä‚¢‚ÄA‚»‚ê‚É•K—v‚ÈŠÔŒo‰ß‚µ‚Ä‚¢‚È‚¢ */
-				addHeightWait++;
+				addHeightWait--;
 				continue;
 			}
 		}
@@ -2746,7 +2782,7 @@ void DrawMainInfo::next(){
 	}
 	addHeight[10] = 0;
 	
-	addHeightWait = 0;
+	addHeightWait = 25;
 	
 	rankingPos = 0;
 	rankingFlag = false;
@@ -2759,7 +2795,7 @@ void DrawMainInfo::prev(){
 	}
 	addHeight[-10] = 0;
 	
-	addHeightWait = 0;
+	addHeightWait = 25;
 	
 	rankingPos = 0;
 	rankingFlag = false;
@@ -2769,6 +2805,9 @@ void DrawMainInfo::left(){
 	if(rankingPos < 0){	/* ƒRƒƒ“ƒg•\¦‚Ì‘O‚Ö‚Ís‚¯‚È‚¢ */
 		return;
 	}
+	
+	addHeightWait /= 2;	/* Ú×ƒ‰ƒ“ƒLƒ“ƒO‚Æ‚©‚ğŒ©‚½‚¢‚É‚ÍŠÔ‚ğŒ¸‚ç‚µ‚Ä‚ ‚°‚é */
+	
 	if(rankingPos == 0 && rankingFlag){	/* 1ˆÊ‚Ì‚İ©1`RANKING_DRAW_LENˆÊ‚Ì‚Æ‚« */
 		rankingFlag = false;
 	}else{	/* ‚»‚Ì‘¼‚Ì */
@@ -2781,6 +2820,9 @@ void DrawMainInfo::right(){
 	if(rankingPos + RANKING_DRAW_LEN >= RANKING_LEN){
 		return;
 	}
+	
+	addHeightWait /= 2;	/* Ú×ƒ‰ƒ“ƒLƒ“ƒO‚Æ‚©‚ğŒ©‚½‚¢‚É‚ÍŠÔ‚ğŒ¸‚ç‚µ‚Ä‚ ‚°‚é */
+	
 	if(rankingPos == 0 && !rankingFlag){	/* 1ˆÊ‚Ì‚İ¨1`RANKING_DRAW_LENˆÊ‚Ì‚Æ‚« */
 		rankingFlag = true;
 	}else{	/* ‚»‚Ì‘¼‚Ì */
@@ -3297,19 +3339,10 @@ void drawTitle(int fontHandleTitle, int fontHandleCopyright, int fontHandleInfo,
 		DrawStringToHandle((W_WINDOW - strWidth) / 2, (H_WINDOW) * 2 / 3 - 12, strInfo,
 			GetColor(255, 255, 255), fontHandleInfo);
 	}
-	DrawStringToHandle(10, 10, "ƒ‰ƒ“ƒLƒ“ƒOƒtƒ@ƒCƒ‹‚ÌŒ`®‚ªV‚µ‚­‚È‚è‚Ü‚µ‚½B",
+	DrawStringToHandle(10, 10, "“à•”ƒf[ƒ^\‘¢‚ğ‘å•‚É‘‚«Š·‚¦‚Ü‚µ‚½B",
 		GetColor(255, 255, 0), fontHandleInfo);
-	DrawStringToHandle(10, 40, "‹ŒŒ`®‚ÆŒİŠ·«‚Í‚ ‚è‚Ü‚·‚ªAƒÀƒeƒXƒg’†‚Ì‚½‚ßA",
+	DrawStringToHandle(10, 40, "‹““®‚ª‚¨‚©‚µ‚­‚È‚Á‚½“_‚ª‚ ‚ê‚Î‹³‚¦‚Ä‚­‚¾‚³‚¢B",
 		GetColor(255, 255, 0), fontHandleInfo);
-	DrawStringToHandle(10, 70, "ƒf[ƒ^‚ª¸‚í‚ê‚È‚¢‚Æ‚¢‚¤•ÛØ‚Í‚Å‚«‚Ü‚¹‚ñB",
-		GetColor(255, 255, 0), fontHandleInfo);
-	DrawStringToHandle(10, 100, "‚²—¹³‚­‚¾‚³‚¢B",
-		GetColor(255, 255, 0), fontHandleInfo);
-		
-	DrawStringToHandle(10, 220, "ƒ‰ƒ“ƒLƒ“ƒO‚Ìd•¡”»’è‚ª‰ü—Ç‚³‚ê‚½‚½‚ßA",
-		GetColor(255, 255, 255), fontHandleInfo);
-	DrawStringToHandle(10, 250, "config‚É‚Â‚¢‚Ä‚ğ“Ç‚Ş‚±‚Æ‚ğ‚¨Š©‚ß‚µ‚Ü‚·B",
-		GetColor(255, 255, 255), fontHandleInfo);
 }
 
 int readList(){
@@ -3485,3 +3518,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 	myDxLib_End();
 	return 0;
 }
+
+#if 0
+int main(){
+	return WinMain(0,0,0,0);
+}
+#endif
