@@ -117,7 +117,7 @@ using namespace std;
 #define SCALE_FUNCTION 60.0
 /* 判定位置の円を原点とする座標と思うときの、長さ1に相当する画面の長さ */
 
-#define SEC_FADEOUT 0.8
+#define SEC_FADEOUT 0.3
 /* 終わってからスコア表示画面に移行する前にフェードアウトする時間 */
 
 /* ============================================================ */
@@ -523,9 +523,10 @@ struct LyricsBlock{
 	double scoringTime;
 		/* タイミング判定をされた時刻、!isScoringTargetのとき以外は意味はない */
 	//int r, g, b;	/* 打ち始めのエフェクトの色（scoringTimeが有効の時、有効） */
-	double finishedTime;	/* Blockが打ち切られた時刻、負ならまだ */
+	double clearedTime;	/* Blockが打ち切られた時刻、負ならまだ */
+		/* 区切りについては、区切りが意味を持たなくなった時刻 */
 	double x, y, vx, vy;
-		/* （finishedTimeが非負の時）打ち切られた時の跳ねかた（向きはランダム）を保持 */
+		/* （clearedTimeが非負の時）打ち切られた時の跳ねかた（向きはランダム）を保持 */
 public:
 	int lyricsPos();
 };
@@ -650,8 +651,10 @@ private:
 	
 	void phase(int phaseNum);
 	
-	bool input(char *typeBuffer, int &typeBufferLen, vector<LyricsBlock>::iterator &lyricsPosition,
-		bool f_successive, double time, bool isCheckOnly);
+	/* 入力処理。typeBufferがすでにある時に、chが入るかどうか、入ったら得点計算およびtypeBufferを更新 */
+	/* ch = '\0'とすることにより、入る文字が存在するかどうかをテストできる */
+	bool input(char ch, char *typeBuffer, int &typeBufferLen,
+		vector<LyricsBlock>::iterator &lyricsPosition, bool f_successive, double time);
 	bool input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPos,
 		bool f_successive, double time, bool isCheckOnly, bool isSaiki);	/* inputの実際に計算する部分 */
 	
@@ -830,7 +833,7 @@ void CTyping::addLyrics(const char *buf, double time){
 	lb.isValid = true;
 	lb.nTyped = 0;
 	lb.isScoringTarget = true;
-	lb.finishedTime = -INFTY;
+	lb.clearedTime = -INFTY;
 	Lyrics ly;
 	ly.blockNum = m_lyricsBlock.size();
 	for(int cnt=0; buf[cnt]!='\0'; cnt++){
@@ -856,6 +859,7 @@ void CTyping::addNullLyrics(double time, bool isLast){
 	lb.timeJust = time;
 	lb.timeUntil = time;
 	lb.isScoringTarget = false;
+	lb.clearedTime = -INFTY;
 	Lyrics ly;
 	ly.blockNum = m_lyricsBlock.size();
 	ly.ch = ' ';	/* 打つことができない' 'を番兵にする */
@@ -1154,7 +1158,8 @@ void CTyping::keyboard(char ch, double timeCount){
 }
 
 void CTyping::keyboard_1(char ch, double time){
-	if(ch == '\0' || ch == ' '){	/* いろいろ困りそうだし、打つ意味がないから */
+	/* 任意のものを打ったことにできる'\0'は入力に来ないはずだが、来ると非常に困る */
+	if(ch == '\0' || ch == ' '){	/* ' 'はどうせ入らないのだが、悪影響を与える可能性が高いので */
 		return;
 	}
 	
@@ -1168,9 +1173,11 @@ void CTyping::keyboard_1(char ch, double time){
 		return;
 	}
 	
+#if 0
 	m_typeBuffer[m_typeBufferLen++] = ch;
+#endif
 	
-	if(input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time, false)){
+	if(input(ch, m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time)){
 //printf("ok\n");
 	/* その入力が現在の位置で入った */
 		if(!m_isReplay){	/* リプレイに記録 */
@@ -1187,12 +1194,17 @@ void CTyping::keyboard_1(char ch, double time){
 		}
 		return;
 	}
+#if 0
 	m_typeBufferLen--;
+#endif
 	char tmpBuffer[TYPE_BUFFER_LEN + 1];
 	int tmpLen;
 	vector<LyricsBlock>::iterator tmpLyricsPosition;
+#if 0
 	tmpBuffer[0] = ch;
 	tmpLen = 1;
+#endif
+	tmpLen = 0;
 	tmpLyricsPosition = m_lyricsPosition;
 	
 	while(1){
@@ -1211,11 +1223,7 @@ void CTyping::keyboard_1(char ch, double time){
 			continue;
 		}
 #endif
-		if(time >= (*tmpLyricsPosition).timeUntil){
-			/* 飛ばして、かつ、時間切れは打てない */
-			continue;
-		}
-		if(input(tmpBuffer, tmpLen, tmpLyricsPosition, false, time, false)){
+		if(input(ch, tmpBuffer, tmpLen, tmpLyricsPosition, false, time)){
 //printf("ok\n");
 		/* 新しい位置でその入力が入った */
 			if(!m_isReplay){	/* リプレイに記録 */
@@ -1293,7 +1301,8 @@ bool CTyping::idle(double timeCount){	/* 問題なければ true を返す */
 	
 	if(flag){	/* 毎回チェックすると重いかもしれないので、必要なときに限定する */
 		/* 「何かのキーを押せば現在の位置で入力可能」ではない */
-		if(!input(m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time, true)){
+		if(!input('\0', m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time)){
+			/* chを'\0'として、打てる入力が存在するかチェック */
 			/* f_successiveがtrueなのに特に意味はない */
 			/* 入力が切れたものは飛ばす（m_lyricsPositionが進んで、コンボが切れる） */
 			while(time >= (*m_lyricsPosition).timeUntil){
@@ -1427,24 +1436,44 @@ void CTyping::phase(int phaseNum){
 
 /* ------------------------------------------------------------ */
 
-bool CTyping::input(char *typeBuffer, int &typeBufferLen, vector<LyricsBlock>::iterator &lyricsPosition,
-		bool f_successive, double time, bool isCheckOnly){
+bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
+		vector<LyricsBlock>::iterator &lyricsPosition, bool f_successive, double time){
+	if(typeBufferLen == 0){
+		/* 新たに打ち始めるとき */
+		if(time >= (*lyricsPosition).timeUntil){
+			/* 打ち始める位置が時間切れなら打てない */
+			return false;
+		}
+	}
+	
+	vector<Lyrics>::iterator lyricsPos = &m_lyrics[(*lyricsPosition).lyricsPos()];
+	
+	typeBuffer[typeBufferLen++] = ch;	/* 打った文字を追加 */
+	/* CheckOnly（打てる入力が存在するか調べる）のときは、\0を追加する。 */
+	/* 　そのとき、実際に打った長さを1つ多くすることによって、*/
+	/* 　任意の1文字さらに打ったとして時間制限を判定できる */
+	
 	typeBuffer[typeBufferLen] = '\0';
 	/* typeBufferLenを「実際に打った長さ」として用いるため */
 	/* これを書いておかないとバッファオーバーランが起きる */
-	vector<Lyrics>::iterator lyricsPos = &m_lyrics[(*lyricsPosition).lyricsPos()];
 	
 	bool ret;
-	if(isCheckOnly){
-		int tmpTypeBufferLen = typeBufferLen + 1;	/* typeBufferLenは更新しないので問題なし */
-		/* 実際に打った長さを1つ多くすることによって、任意の1文字さらに打ったとして時間制限を判定する */
-		ret = input_1(typeBuffer, tmpTypeBufferLen, lyricsPos, f_successive, time, true, false);
+	if(ch == '\0'){
+		ret = input_1(typeBuffer, typeBufferLen, lyricsPos, f_successive, time, true, false);
+		/* 最後から2番目のtrueはCheckOnlyであることを示す */
 		/* 最後のfalseは再帰でないことを示す。 */
+		typeBufferLen--;	/* typeBufferLenを元に戻す */
 	}else{
 		ret = input_1(typeBuffer, typeBufferLen, lyricsPos, f_successive, time, false, false);
-		lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
-			/* 新しい歌詞の位置に */
-		
+		/* 最後から2番目のfalseは実際に打ったことを示す */
+		/* 最後のfalseは再帰でないことを示す。 */
+		if(ret){
+			lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
+				/* 新しい歌詞の位置に */
+			/* typeBufferが更新されてるから、戻さない */
+		}else{
+			typeBufferLen--;
+		}
 	}
 	return ret;
 }
@@ -1897,8 +1926,20 @@ void CTyping::draw(){
 			
 			if(!(*i).isValid){	/* 歌詞の切れ目 */
 				if(timeDiff < 0.0){	/* 切れ目は判定位置に来るより前のときだけ表示 */
-					DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(128, 128, 128), FALSE);
+					double alpha = 1.0;
+					if(i < m_lyricsPosition){	/* それ以前を打ち終わったとき */
+						if((*i).clearedTime < 0){
+							(*i).clearedTime = time;
+						}
+						alpha = ((*i).timeJust - time) / ((*i).timeJust - (*i).clearedTime);
+						alpha *= alpha*alpha;
+					}
 					/* 灰色の円を流す */
+					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 51 * alpha);	/* alpha * 1/5の不透明度で描画 */
+					DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, GetColor(85, 85, 85), TRUE);
+					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * alpha);
+					DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(85, 85, 85), FALSE);
+					SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 				}
 				continue;
 			}
@@ -1907,9 +1948,9 @@ void CTyping::draw(){
 			int len = getBlockStr(i, buf);	/* ブロック内の未タイプの文字をbufに格納 */
 			buf[len] = '\0';
 			if(len == 0){	/* すべてタイプされていた */
-				if((*i).finishedTime < 0){
+				if((*i).clearedTime < 0){
 					/* 時刻を保存 */
-					(*i).finishedTime = time;
+					(*i).clearedTime = time;
 					/* 位置を保存 */
 					(*i).x = posX;
 					(*i).y = posY;
@@ -1953,8 +1994,8 @@ void CTyping::draw(){
 				}
 			}
 			{
-				if((*i).finishedTime >= 0.0){
-					double fTime = (time - (*i).finishedTime)/0.25;
+				if((*i).clearedTime >= 0.0){
+					double fTime = (time - (*i).clearedTime)/0.25;
 					if(fTime >= 1.0){	/* 打ち切ってから十分時間がたった */
 						continue;
 					}
@@ -2104,6 +2145,11 @@ void CTyping::draw(){
 		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * xTime);
 		DrawBox(0, 0, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+		/*
+		int h = (int)(H_WINDOW * 0.5 * xTime * xTime);
+		DrawBox(0, 0, W_WINDOW, h, GetColor(0, 0, 0), TRUE);
+		DrawBox(0, H_WINDOW - h, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
+		*/
 	}
 }
 
@@ -2476,11 +2522,21 @@ bool CTyping::loadReplayLoop(){
 
 #define COMMENT_N_LINES 12
 
-class CMusicInfo{
+struct MusicInfo{
+	char m_title[256];
+	char m_artist[256];
+	char m_fumenAuthor[256];
+	int m_level;
+	char m_fumenFileName[256];
+	char m_rankingFileName[256];
+	char m_comment[COMMENT_N_LINES][256];
+	
+	int m_num;
+	int m_numAll;
 public:
-	CMusicInfo();
-	CMusicInfo(const CMusicInfo &info);
-	~CMusicInfo();
+	MusicInfo();
+	MusicInfo(const MusicInfo &info);
+	~MusicInfo();
 	
 	void load(CTyping &typing);
 	
@@ -2495,38 +2551,27 @@ public:
 private:
 	void createFont();
 	void deleteFont();
-public:
-	char m_title[256];
-	char m_artist[256];
-	char m_fumenAuthor[256];
-	int m_level;
-	char m_fumenFileName[256];
-	char m_rankingFileName[256];
-	char m_comment[COMMENT_N_LINES][256];
-	
-	int m_num;
-	int m_numAll;
 private:
 	CRanking m_ranking;
-	static int m_count;	/* 作られているCMusicInfoの個数 */
+	static int m_count;	/* 作られているMusicInfoの個数 */
 	static int m_fontHandleNormal;
 	static int m_fontHandleTitle;
 	static int m_fontHandleRanking;
 };
 
-int CMusicInfo::m_count = 0;
-int CMusicInfo::m_fontHandleNormal;
-int CMusicInfo::m_fontHandleTitle;
-int CMusicInfo::m_fontHandleRanking;
+int MusicInfo::m_count = 0;
+int MusicInfo::m_fontHandleNormal;
+int MusicInfo::m_fontHandleTitle;
+int MusicInfo::m_fontHandleRanking;
 
-CMusicInfo::CMusicInfo(){
+MusicInfo::MusicInfo(){
 //printfDx("%d++ ", m_count);
 	if(m_count++ == 0){
 		createFont();
 	}
 }
 
-CMusicInfo::CMusicInfo(const CMusicInfo &info){
+MusicInfo::MusicInfo(const MusicInfo &info){
 	*this = info;
 //printfDx("%d++ ", m_count);
 	if(m_count++ == 0){
@@ -2534,19 +2579,19 @@ CMusicInfo::CMusicInfo(const CMusicInfo &info){
 	}
 }
 
-CMusicInfo::~CMusicInfo(){
+MusicInfo::~MusicInfo(){
 	if(--m_count == 0){
 		deleteFont();
 	}
 //printfDx("--%d ", m_count);
 }
 
-void CMusicInfo::load(CTyping &typing){
+void MusicInfo::load(CTyping &typing){
 	typing.load(m_fumenFileName, m_rankingFileName);
 }
 
 /* ランキングを読み込む */
-void CMusicInfo::readRanking(){
+void MusicInfo::readRanking(){
 	m_ranking.open(m_rankingFileName);
 	m_ranking.read();
 	m_ranking.close();
@@ -2562,7 +2607,7 @@ void CMusicInfo::readRanking(){
 #define X_F_AUTHOR (W_WINDOW - 30)
 #define Y_F_AUTHOR Y_LEVEL
 
-void CMusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
+void MusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 	int color = GetColor(brightness, brightness, brightness);
 	/* タイトルの長さを測っておく */
 	int widthTitle = GetDrawStringWidthToHandle(m_title, strlen(m_title), m_fontHandleTitle);
@@ -2633,36 +2678,36 @@ void CMusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 	DrawStringToHandle(X_TITLE, y + Y_TITLE, m_title, color, m_fontHandleTitle);
 }
 
-void CMusicInfo::drawComment(int x, int y){
+void MusicInfo::drawComment(int x, int y){
 	for(int i = 0; i < COMMENT_N_LINES; i++){
 		DrawStringToHandle(30+x, y+2 +20* i, m_comment[i], GetColor(255, 255, 255), m_fontHandleNormal);
 	}
 }
 
 
-void CMusicInfo::drawRanking(int x, int y, int rankBegin, int rankLen){
+void MusicInfo::drawRanking(int x, int y, int rankBegin, int rankLen){
 	m_ranking.draw(x, y, rankBegin, rankLen, m_fontHandleRanking);
 }
 /*
-void CMusicInfo::renewFont(){
+void MusicInfo::renewFont(){
 	deleteFont();
 	createFont();
 }
 */
 
-bool CMusicInfo::titleCmp(char *buf){
+bool MusicInfo::titleCmp(char *buf){
 /* 【 関数名頭悪い。要修正 】 */
 /* タイトルの一部と一致するかを返す */
 	return (strstr(m_title, buf) != NULL) ? true : false;
 }
 
-void CMusicInfo::createFont(){
+void MusicInfo::createFont(){
 	m_fontHandleNormal = CreateFontToHandle("ＭＳ ゴシック", 16, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 30, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleRanking = CreateFontToHandle(NULL, 16, 2);
 }
 
-void CMusicInfo::deleteFont(){	/* フォントを削除 */
+void MusicInfo::deleteFont(){	/* フォントを削除 */
 	DeleteFontToHandle(m_fontHandleNormal);
 	DeleteFontToHandle(m_fontHandleTitle);
 	DeleteFontToHandle(m_fontHandleRanking);
@@ -2670,9 +2715,9 @@ void CMusicInfo::deleteFont(){	/* フォントを削除 */
 
 /* ============================================================ */
 
-vector<CMusicInfo> g_infoArray;
+vector<MusicInfo> g_infoArray;
 
-vector<CMusicInfo>::iterator prevInfo(vector<CMusicInfo>::iterator itr){
+vector<MusicInfo>::iterator prevInfo(vector<MusicInfo>::iterator itr){
 /* 1つ戻る。最初から1つ戻ると最後に。 */
 	if(itr == g_infoArray.begin()){
 		itr = g_infoArray.end();
@@ -2681,7 +2726,7 @@ vector<CMusicInfo>::iterator prevInfo(vector<CMusicInfo>::iterator itr){
 	return itr;
 }
 
-vector<CMusicInfo>::iterator nextInfo(vector<CMusicInfo>::iterator itr){
+vector<MusicInfo>::iterator nextInfo(vector<MusicInfo>::iterator itr){
 /* 1つ進む。1つ進んで最後を超えると最初に。 */
 	itr++;
 	if(itr == g_infoArray.end()){
@@ -2834,7 +2879,7 @@ void DrawMainInfo::right(){
 /* ============================================================ */
 
 /* rankingPos位からのランキング（負の時コメント）を(x,y)から描画。高さはhに制限 */
-void drawMainRanking(vector<CMusicInfo>::iterator itr, int rankingPos,
+void drawMainRanking(vector<MusicInfo>::iterator itr, int rankingPos,
 		int x, int y, int h){
 	int yMin = y, yMax =y+h;
 	if(yMin < 0){
@@ -2855,7 +2900,7 @@ void drawMainRanking(vector<CMusicInfo>::iterator itr, int rankingPos,
 }
 
 /* メイン画面（曲選択画面）を描く */
-void drawMain(vector<CMusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
+void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 		CChallenge &challenge, const char *name, int inputHandle, int fontHandleDefault){
 	//if(dInfo.rankingPos == -RANKING_DRAW_LEN){
 	int dy = 180 + (MUSIC_INFO_HEIGHT - dInfo.addHeight[0])/2
@@ -2878,7 +2923,7 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* 描画範囲を制限 */
 	/* タイトルなど表示、水平線で区切る */
 	{	/* 前の曲 */
-		vector<CMusicInfo>::iterator itr = infoArrayItr;
+		vector<MusicInfo>::iterator itr = infoArrayItr;
 		int y = dy - MUSIC_INFO_HEIGHT;
 		int cnt = 0;
 		while(y >= 0){	/* 枠内の間 */
@@ -2891,7 +2936,7 @@ void drawMain(vector<CMusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 		}
 	}
 	{	/* 後の曲 */
-		vector<CMusicInfo>::iterator itr = infoArrayItr;
+		vector<MusicInfo>::iterator itr = infoArrayItr;
 		int y = dy + dInfo.addHeight[0];
 		int cnt = 0;
 		while(y <360){	/* 枠内の間 */
@@ -3187,7 +3232,7 @@ bool main2(bool &isWindowMode, const char *name){
 		GetColor( 255 , 255 ,  20 )
 	);
 	
-	vector<CMusicInfo>::iterator infoArrayItr = g_infoArray.begin();
+	vector<MusicInfo>::iterator infoArrayItr = g_infoArray.begin();
 	//int rankingPos = -RANKING_DRAW_LEN;
 	/* -RANKING_DRAW_LENなら、1位のみ表示。こうしておくと、RANKING_DRAW_LEN位ずつ表示するときと都合が良い。 */
 	/* -2*RANKING_DRAW_LENならコメント表示 */
@@ -3291,7 +3336,7 @@ bool main2(bool &isWindowMode, const char *name){
 				char buf[256];
 				GetKeyInputString(buf, inputHandle);
 				{	/* 検索 */
-					vector<CMusicInfo>::iterator tmpItr = infoArrayItr;
+					vector<MusicInfo>::iterator tmpItr = infoArrayItr;
 					do{
 						infoArrayItr = nextInfo(infoArrayItr);
 						if(infoArrayItr->titleCmp(buf)){
@@ -3339,10 +3384,12 @@ void drawTitle(int fontHandleTitle, int fontHandleCopyright, int fontHandleInfo,
 		DrawStringToHandle((W_WINDOW - strWidth) / 2, (H_WINDOW) * 2 / 3 - 12, strInfo,
 			GetColor(255, 255, 255), fontHandleInfo);
 	}
+	/*
 	DrawStringToHandle(10, 10, "内部データ構造を大幅に書き換えました。",
 		GetColor(255, 255, 0), fontHandleInfo);
 	DrawStringToHandle(10, 40, "挙動がおかしくなった点があれば教えてください。",
 		GetColor(255, 255, 0), fontHandleInfo);
+	*/
 }
 
 int readList(){
@@ -3356,7 +3403,7 @@ int readList(){
 	char buf[256];
 	while(fgetline(buf, fpList) != NULL){
 		FILE *fpInfo;
-		CMusicInfo info;
+		MusicInfo info;
 		fpInfo = fopen(buf, "r");	/* 情報ファイルを開く */
 		if(fpInfo == NULL){	/* 開けないファイルは無視 */
 			continue;
@@ -3392,7 +3439,7 @@ int readList(){
 	}
 	fclose(fpList);	/* リストを閉じる */
 	
-	for(vector<CMusicInfo>::iterator i = g_infoArray.begin(); i != g_infoArray.end(); i++){
+	for(vector<MusicInfo>::iterator i = g_infoArray.begin(); i != g_infoArray.end(); i++){
 		(*i).readRanking();		/* ランキングを読み込み */
 		(*i).m_numAll = count;
 	}
