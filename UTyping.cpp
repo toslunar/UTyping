@@ -467,6 +467,7 @@ public:
 	~CTrieNode();
 	void insert(const char *str, const ConvertData &data);	/* strでたどった先にdataを入れる */
 	CTrieNode *find(const char *str);
+	CTrieNode *find(char ch);
 private:
 	CTrieNode *m_next[256];
 public:
@@ -509,6 +510,13 @@ CTrieNode *CTrieNode::find(const char *str){
 		return NULL;
 	}
 	return m_next[i]->find(str+1);	/* 次をたどる */
+}
+
+CTrieNode *CTrieNode::find(char ch){
+	char buf[2];
+	buf[0] = ch;
+	buf[1] = '\0';
+	return find(buf);
 }
 
 /* ============================================================ */
@@ -658,6 +666,8 @@ private:
 	bool input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iterator &lyricsPos,
 		bool f_successive, double time, bool isCheckOnly, bool isSaiki);	/* inputの実際に計算する部分 */
 	
+	void setTyped(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
+	
 	void scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd);
 	void scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successive, double time);
 	
@@ -761,6 +771,7 @@ CTyping::CTyping(){
 	/* ローマ字辞書はコンストラクタで読む */
 	if(!g_config.f_debugMode){	/* 通常のとき */
 		loadDictionary("convert.dat");
+#if 0
 	}else{	/* デバッグ時 */
 		char buf1[256], buf2[256], buf3[256];
 		strcpy(buf2, "+");
@@ -770,6 +781,7 @@ CTyping::CTyping(){
 			buf1[1] = '\0';
 			m_trie.insert(buf2, ConvertData(buf1, buf3));
 		}
+#endif
 	}
 	strcpy(m_name, "");
 	
@@ -856,6 +868,7 @@ void CTyping::addNullLyrics(double time, bool isLast){
 	lb.lyricsNum = m_lyrics.size();
 	lb.lyricsLen = 0;	/* 「" "があるから1」などをわざわざしなくてもよい */
 	lb.isValid = isLast;	/* 最後にisValid = trueの番兵を置く。これは無害。 */
+	//lb.nTyped = 0;
 	lb.timeJust = time;
 	lb.timeUntil = time;
 	lb.isScoringTarget = false;
@@ -908,10 +921,6 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 				throw "[譜面] 書式が不正です。(+)";
 			}
 			time /= frequencyRate;
-			if(g_config.f_debugMode){
-				/* 歌詞を"+"とする */
-				strcpy(buf, "+");
-			}
 			addLyrics(buf, time);
 		}
 			break;
@@ -951,8 +960,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			bl.time = time;
 			m_beatLine.push_back(bl);
 			if(g_config.f_debugMode && g_config.f_debugBeat){
-				strcpy(buf, "+");
-				/* 拍子線を"+"の打つ歌詞とする */
+				/* 拍子線を"+"を打つ歌詞とする */
+				addLyrics("+", time);
 			}
 		}
 			break;
@@ -1236,8 +1245,8 @@ void CTyping::keyboard_1(char ch, double time){
 			m_effect1.insert(X_CIRCLE, Y_CIRCLE, ch, GetColor(170, 170, 255), time);
 			
 			/* 新しいデータを書き込む */
-			strcpy(m_typeBuffer, tmpBuffer);
-			m_typeBufferLen = tmpLen;	/* 1とは限らないので */
+			memcpy(m_typeBuffer, tmpBuffer, tmpLen);
+			m_typeBufferLen = tmpLen;
 			m_lyricsPosition = tmpLyricsPosition;
 			while(!(*m_lyricsPosition).isValid){	/* 歌詞の切れ目を指しているなら */
 				m_lyricsPosition++;	/* 進める */
@@ -1446,7 +1455,7 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 		}
 	}
 	
-	vector<Lyrics>::iterator lyricsPos = &m_lyrics[(*lyricsPosition).lyricsPos()];
+	vector<Lyrics>::iterator lyricsPos = &m_lyrics[lyricsPosition->lyricsPos()];
 	
 	typeBuffer[typeBufferLen++] = ch;	/* 打った文字を追加 */
 	/* CheckOnly（打てる入力が存在するか調べる）のときは、\0を追加する。 */
@@ -1458,6 +1467,36 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 	/* これを書いておかないとバッファオーバーランが起きる */
 	
 	bool ret;
+	
+	if(g_config.f_debugMode){
+		ret = (time < lyricsPosition->timeUntil);
+		if(ch == '\0' || !ret){	/* チェックのときや入らないときは元に戻して返す */
+			typeBufferLen--;
+			return ret;
+		}
+		/* 何を打っても、それで1つすべて打てたことにする */
+		typeBufferLen = 0;
+		
+		scoreAccuracy(lyricsPos, f_successive, time);
+		
+		lyricsPosition++;
+		vector<Lyrics>::iterator tmpLyricsPos = &m_lyrics[lyricsPosition->lyricsNum];
+		scoreTyping(lyricsPos, tmpLyricsPos);
+		setTyped(lyricsPos, tmpLyricsPos);
+		return ret;
+	}
+	
+	ret = input_1(typeBuffer, typeBufferLen, lyricsPos, f_successive, time, (ch=='\0'), false);
+		/* 最後から2番目はチェックのみか */
+		/* 最後のfalseは再帰でないことを示す。 */
+	if(ch != '\0' && ret){	/* 実際に打ち、それが入った場合 */
+		lyricsPosition = &m_lyricsBlock[lyricsPos->blockNum];
+			/* 新しい歌詞の位置に */
+		/* typeBufferが更新されてるから、戻さない */
+	}else{
+		typeBufferLen--;	/* typeBufferLenを元に戻す */
+	}
+#if 0
 	if(ch == '\0'){
 		ret = input_1(typeBuffer, typeBufferLen, lyricsPos, f_successive, time, true, false);
 		/* 最後から2番目のtrueはCheckOnlyであることを示す */
@@ -1468,13 +1507,14 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 		/* 最後から2番目のfalseは実際に打ったことを示す */
 		/* 最後のfalseは再帰でないことを示す。 */
 		if(ret){
-			lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
+			lyricsPosition = &m_lyricsBlock[lyricsPos->blockNum];
 				/* 新しい歌詞の位置に */
 			/* typeBufferが更新されてるから、戻さない */
 		}else{
 			typeBufferLen--;
 		}
 	}
+#endif
 	return ret;
 }
 
@@ -1488,11 +1528,8 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 	vector<Lyrics>::iterator tmpLyricsPos = lyricsPos;
 	CTrieNode *trie = &m_trie;
 	while(1){
-		char buf[2];
-		buf[0] = (*tmpLyricsPos).ch;
+		trie = trie->find(tmpLyricsPos->ch);	/* 日本語1バイト進む */
 		tmpLyricsPos++;
-		buf[1] = '\0';
-		trie = trie->find(buf);	/* 日本語1バイト進む */
 		if(trie == NULL){	/* trieをたどれない、つまり、まとめて打てる範囲を超えた。 */
 			return false;
 		}
@@ -1536,6 +1573,7 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 						if(!isSaiki){
 						/* 再帰の2段目以降でもタイピング点を計算すると2重になるので、直接の呼び出しのみ処理 */
 							scoreTyping(lyricsPos, tmpLyricsPos);
+							setTyped(lyricsPos, tmpLyricsPos);
 						}
 						lyricsPos = tmpLyricsPos;	/* どこまで行ったかを戻す */
 						strcpy(typeBuffer, tmpTypeBuffer);
@@ -1553,14 +1591,21 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 
 /* ------------------------------------------------------------ */
 
+void CTyping::setTyped(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd){
+	vector<LyricsBlock>::iterator lyBlockBegin = &m_lyricsBlock[lyBegin->blockNum];
+	vector<LyricsBlock>::iterator lyBlockEnd = &m_lyricsBlock[lyEnd->blockNum];
+	for(vector<LyricsBlock>::iterator itr = lyBlockBegin; itr != lyBlockEnd; itr++){
+		itr->nTyped = itr->lyricsLen;
+	}
+	lyBlockEnd->nTyped = lyEnd->blockPos;
+}
+
+/* ------------------------------------------------------------ */
+
 void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd){
 /* [lyBegin, lyEnd)を打ったときの得点 */
 	bool isJapanese2 = false;
 	for(vector<Lyrics>::iterator i = lyBegin; i != lyEnd; i++){
-		vector<LyricsBlock>::iterator lyricsPosition = &m_lyricsBlock[(*i).blockNum];
-		if((*lyricsPosition).nTyped <= (*i).blockPos){
-			(*lyricsPosition).nTyped = (*i).blockPos + 1;	/* 打った範囲を記録 */
-		}
 		if(isJapanese2){
 			isJapanese2 = false;
 		}else{
