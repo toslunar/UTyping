@@ -4,7 +4,7 @@
 #include "utchallenge.h"
 #include "ututil.h"
 
-#define RANKING_FILE_VERSION 2
+#define RANKING_FILE_VERSION 3
 
 #define RANKING_LEN 20
 /* ランキングに記録する順位が何位までか */
@@ -18,6 +18,9 @@
 
 #define H_RANKING 252
 /* RANKING_LEN 位分を描画するときの幅 */
+
+#define H_PLAY_DATA 40
+/* プレイ回数・プレイ時間を表示する幅 */
 
 class CScore{
 public:
@@ -214,19 +217,27 @@ public:
 	~CRanking();
 	int update(const CScore &score, bool f_checkDate, bool f_checkChallenge);
 		/* 日付が異なったら異なるとみなすか、チャレンジが異なったら異なるとみなすか */
+	void addPlayTime(double playTime);
+	
 	void open(const char *fileName);
 	void close();
 	void read();
 	void write();
 	
 	void draw(int x, int y, int rankBegin, int rankLen, int fontHandle);
+	void drawPlayData(int x, int y, int fontHandle);
 private:
 	FILE *m_fp;
+	bool m_isChanged;
+	
 	CScore m_score[RANKING_LEN];
+	int m_playCount;
+	int m_playTime;
 };
 
 CRanking::CRanking(){
 	m_fp = NULL;	/* まだファイルを開いていない */
+	m_isChanged = false;
 }
 
 CRanking::~CRanking(){
@@ -235,6 +246,10 @@ CRanking::~CRanking(){
 
 /* ランクインなら順位(0～RANKING_LEN-1)を返す。そうでなければ -1 を返す */
 int CRanking::update(const CScore &score, bool f_checkDate, bool f_checkChallenge){
+	m_isChanged = true;
+	
+	m_playCount++;	/* プレイ回数を更新 */
+	
 	int lastRank = RANKING_LEN - 1;	/* すでに入っている順位（のうち最後のもの） */
 	/* 入っていない場合は、RANKING_LEN - 1が都合が良い */
 	/* データをずらすときに、ランク外だったとしても、最後のランクだったとしても同じになるから。 */
@@ -267,6 +282,12 @@ int CRanking::update(const CScore &score, bool f_checkDate, bool f_checkChalleng
 	return -1;
 }
 
+void CRanking::addPlayTime(double playTime){
+	m_isChanged = true;
+	
+	m_playTime += (int)playTime;
+}
+
 void CRanking::open(const char *fileName){
 	if(m_fp != NULL){
 		close();
@@ -283,19 +304,27 @@ void CRanking::open(const char *fileName){
 
 void CRanking::close(){
 	if(m_fp != NULL){
+		if(m_isChanged){	/* 更新が保存されてない場合 */
+			write();
+		}
 		fclose(m_fp);
 		m_fp = NULL;
 	}
 }
 
 void CRanking::read(){
+	m_isChanged = false;
+	
 	rewind(m_fp);
 	int version;
 	bool flag = readInt(version, m_fp);
 	if(!flag){	/* ファイルが空 */
+		/* 空のデータを作る */
 		for(int i=0; i<RANKING_LEN; i++){
 			m_score[i].init();
 		}
+		m_playCount = 0;
+		m_playTime = 0;
 		return;
 	}
 	if((version & 0xff) > ' '){	/* 最初のバージョン対策 */
@@ -305,6 +334,13 @@ void CRanking::read(){
 	if(version > RANKING_FILE_VERSION || version < 0){
 		throw "新しいバージョンのランキングファイルです。プログラムを更新してください。";
 	}
+	if(version >= 3){
+		readInt(m_playCount, m_fp);
+		readInt(m_playTime, m_fp);
+	}else{
+		m_playCount = 0;
+		m_playTime = 0;
+	}
 	for(int i=0; i<RANKING_LEN; i++){
 		m_score[i].read(m_fp, version);
 	}
@@ -313,8 +349,20 @@ void CRanking::read(){
 }
 
 void CRanking::write(){
+#if 0
+	if(!m_isChanged){
+		return;
+	}
+#endif
+//printfDx("%d\n",m_isChanged);
+	m_isChanged = false;	/* 更新部分は書き込まれる */
+	
 	rewind(m_fp);
 	writeInt(RANKING_FILE_VERSION, m_fp);
+	
+	writeInt(m_playCount, m_fp);
+	writeInt(m_playTime, m_fp);
+	
 	for(int i=0; i<RANKING_LEN; i++){
 		m_score[i].write(m_fp);
 	}
@@ -329,6 +377,24 @@ void CRanking::draw(int x, int y, int rankBegin, int rankLen, int fontHandle){
 			break;
 		}
 		m_score[j].draw(x, y + 48 * i, j + 1, fontHandle);	/* 実際は、0番目は1位 etc. */
+	}
+}
+
+void CRanking::drawPlayData(int x, int y, int fontHandle){
+	int color = GetColor(170, 170, 170);
+	{
+		char buf[256];
+		sprintf(buf, "プレイ回数 : %17d 回", m_playCount);
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandle);
+		DrawStringToHandle((W_WINDOW - 30) - width + x, y + 2, buf, color, fontHandle);
+	}
+	{
+		char buf[256];
+		char buf2[64];
+		getTimeStr(buf2, m_playTime);
+		sprintf(buf, "プレイ時間 : %20s", buf2);
+		int width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandle);
+		DrawStringToHandle((W_WINDOW - 30) - width + x, y + 22, buf, color, fontHandle);
 	}
 }
 
