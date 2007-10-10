@@ -57,8 +57,10 @@ using namespace std;
 /* ƒ^ƒCƒsƒ“ƒO‚É—p‚¢‚éƒoƒbƒtƒ@‚Ì’·‚³ */
 /* –¼‘O‚ÌÅ‘å’·‚É“™‚µ‚¢ */
 
-#define H_COMMENT H_RANKING
-/* ƒRƒƒ“ƒg‚Ì•i‚‚³j‚ÍRANKING_LEN ˆÊ•ª‚ğ•`‰æ‚·‚é‚Æ‚«‚Æ“¯‚¶ */
+#define H_COMMENT 240
+/* yƒRƒƒ“ƒg‚Ì•i‚‚³j‚ÍRANKING_LEN ˆÊ•ª‚ğ•`‰æ‚·‚é‚Æ‚«‚Æ“¯‚¶z‚¾‚Á‚½ */
+
+#define H_MUSIC_INFO_SUB (6+H_COMMENT+4+H_PLAY_DATA+6)
 
 #define MUSIC_INFO_HEIGHT 60
 /* ‹Èî•ñ‚Ì•i‚‚³j */
@@ -117,7 +119,7 @@ using namespace std;
 #define SCALE_FUNCTION 60.0
 /* ”»’èˆÊ’u‚Ì‰~‚ğŒ´“_‚Æ‚·‚éÀ•W‚Æv‚¤‚Æ‚«‚ÌA’·‚³1‚É‘Š“–‚·‚é‰æ–Ê‚Ì’·‚³ */
 
-#define SEC_FADEOUT 0.3
+#define SEC_FADEOUT 1.2
 /* I‚í‚Á‚Ä‚©‚çƒXƒRƒA•\¦‰æ–Ê‚ÉˆÚs‚·‚é‘O‚ÉƒtƒF[ƒhƒAƒEƒg‚·‚éŠÔ */
 
 /* ============================================================ */
@@ -130,14 +132,9 @@ using namespace std;
 #define INFTY 1000000000
 
 enum{
-EDIT_BUFFER_NONE,
-EDIT_BUFFER_OK,
-EDIT_BUFFER_CANCEL,
-};
-
-enum{
 PHASE_READY,	/* ŠJn‘O */
 PHASE_MAIN,	/* ƒƒCƒ“ */
+PHASE_FADEOUT,	/* MAINI—¹ŒãƒtƒF[ƒhƒAƒEƒg */
 PHASE_RESULT,	/* ƒXƒRƒA•\¦ */
 PHASE_FINISHED,	/* –¼‘O“ü—ÍŒãiƒnƒCƒXƒRƒAˆ—Š®—¹j */
 PHASE_EXIT,	/* I‚í‚Á‚½‚Ì‚ÅÁ‚µ‚Ä‚à‚ç‚¤ */
@@ -275,37 +272,6 @@ bool checkUTypingUserID(){
 	}
 	fclose(fp);
 	return true;
-}
-
-/* ============================================================ */
-
-/* ƒL[“ü—Í‚Åƒoƒbƒtƒ@‚ğ‘€ì‚·‚é */
-
-#define editBuffer(ch, buf, len) editBuffer_1(ch, buf, len, sizeof(buf))
-
-int editBuffer_1(char ch, char *buf, int &len, int bufSize){
-	if(ch < CTRL_CODE_CMP){	/* •¶šƒR[ƒh‚Å‚È‚¢‚Æ‚« */
-		switch(ch){
-		case CTRL_CODE_CR:	/* ‰üs‚È‚çŠm’è */
-			return EDIT_BUFFER_OK;
-		case CTRL_CODE_BS:	/* BackSpace‚â¶ƒL[‚âDelete‚È‚ç */
-		case CTRL_CODE_LEFT:
-		case CTRL_CODE_DEL:
-			if(len > 0){
-				len--;	/* ˆê•¶šíœ */
-			}
-			buf[len] = '\0';
-			break;
-		case CTRL_CODE_ESC:
-			return EDIT_BUFFER_CANCEL;
-		}
-		return 0;
-	}
-	if(len < bufSize - 1){
-		buf[len++] = ch;
-		buf[len] = '\0';
-	}
-	return 0;
 }
 
 /* ============================================================ */
@@ -681,6 +647,8 @@ private:
 	
 	void draw();
 	void drawResult();
+	
+	void drawFlagAbort();
 public:
 	void mainLoop();
 	void replayLoop();
@@ -704,8 +672,6 @@ private:
 	vector<LyricsBlock>::iterator m_lyricsBlockDrawLeft;
 	vector<LyricsBlock>::iterator m_lyricsBlockDrawRight;
 	/* draw‚ÅA’¼‘O‚É•`‰æ‚³‚ê‚½”ÍˆÍ */
-	
-	double m_timeLength;	/* •ˆ–Ê‚ÌiŠÔ‚Ìj’·‚³ */
 	
 	vector<LyricsKanji> m_lyricsKanji;
 	vector<LyricsKanji>::iterator m_lyricsKanjiPosition;
@@ -755,6 +721,8 @@ private:
 	int m_textColor;
 	double m_textTime;
 	
+	double m_timeLength;	/* ƒQ[ƒ€‚ªI—¹‚µAƒtƒF[ƒhƒAƒEƒg‚ªn‚Ü‚Á‚½i‹È‚ªn‚Ü‚Á‚Ä‚©‚ç‚Ìj‚ğ•Û‘¶ */
+	
 	CChallenge m_challenge;
 	
 	char m_musicFileName[256];
@@ -765,6 +733,9 @@ private:
 	int m_fontHandleBig;
 	
 	int m_soundHandleMusic;
+	
+	bool m_flagAbort;	/* Esc‚Å’†’f‚³‚ê‚©‚¯‚½‚Æ‚«‚Étrue‚É‚È‚é */
+	//double m_timeCountAbort;	/* 1‰ñ–Ú‚ÌEsc‚ª‰Ÿ‚³‚ê‚½ */
 };
 
 CTyping::CTyping(){
@@ -994,13 +965,6 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 		}
 	}
 	fclose(fp);
-	if(m_lyricsBlock.empty()){
-		//throw "[•ˆ–Ê] ƒf[ƒ^‚ª‚ ‚è‚Ü‚¹‚ñB";
-		m_timeLength = 0.0;
-	}else{
-		m_timeLength = (*(m_lyricsBlock.end() - 1)).timeJust;	/* •ˆ–ÊI—¹‚ğ‹L˜^ */
-		/* y‚±‚ê‚ÍAÅŒã‚É'/'‚ª‚ ‚é‚±‚Æ‚ğ‘O’ñ‚Æ‚µ‚Ä‚¢‚éz */
-	}
 	
 	/* ‘Å‚Â‰ÌŒ‚Ì”Ô•º‚Æ‚µ‚ÄÅŒã‚É' ',INFTY‚ğ’Ç‰Á‚µ‚Ä‚¨‚­ */
 	addNullLyrics(INFTY, false);
@@ -1074,6 +1038,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	/* ƒ‰ƒ“ƒLƒ“ƒO“Ç‚İ‚İ */
 	
 	m_soundHandleMusic = -1;
+	
+	m_flagAbort = false;
 }
 
 void CTyping::unload(){
@@ -1093,6 +1059,19 @@ void CTyping::setChallenge(CChallenge &challenge){
 }
 
 void CTyping::keyboard(char ch, double timeCount){
+	if(ch == CTRL_CODE_ESC){
+		if(m_flagAbort){	/* ‚±‚ê‚ª2‰ñ–ÚiˆÈ~j */
+			//if(timeCount - m_timeCountAbort >= 0.2){
+				phase(PHASE_EXIT);
+			//}
+		}else{
+			m_flagAbort = true;
+			//m_timeCountAbort = timeCount;
+		}
+		return;
+	}
+	m_flagAbort = false;	/* ‘¼‚ÌƒL[‚ª‰Ÿ‚³‚ê‚½‚ç’†’f‚ğæ‚èÁ‚· */
+	
 	if(m_phase == PHASE_READY){	/* ŠJn‘O‚È‚ç */
 		if(m_soundHandleMusic != -1){	/* ‰¹Šy‚ª‚·‚Å‚É“Ç‚İ‚Ü‚ê‚½ */
 			phase(PHASE_MAIN);
@@ -1153,7 +1132,7 @@ void CTyping::keyboard(char ch, double timeCount){
 		}
 		return;
 	}
-	if(m_phase == PHASE_FINISHED){	/* ƒ‰ƒ“ƒLƒ“ƒO•\¦’†‚È‚ç */
+	if(m_phase == PHASE_FINISHED){	/* ƒ‰ƒ“ƒLƒ“ƒOi‰½ˆÊ‚Éƒ‰ƒ“ƒNƒCƒ“‚µ‚½‚©j•\¦’†‚È‚ç */
 		if(ch == CTRL_CODE_CR){	/* Enter‚ÅI—¹ */
 			phase(PHASE_EXIT);
 		}
@@ -1168,11 +1147,11 @@ void CTyping::keyboard(char ch, double timeCount){
 
 void CTyping::keyboard_1(char ch, double time){
 	/* ”CˆÓ‚Ì‚à‚Ì‚ğ‘Å‚Á‚½‚±‚Æ‚É‚Å‚«‚é'\0'‚Í“ü—Í‚É—ˆ‚È‚¢‚Í‚¸‚¾‚ªA—ˆ‚é‚Æ”ñí‚É¢‚é */
+#if 0
 	if(ch == '\0' || ch == ' '){	/* ' '‚Í‚Ç‚¤‚¹“ü‚ç‚È‚¢‚Ì‚¾‚ªAˆ«‰e‹¿‚ğ—^‚¦‚é‰Â”\«‚ª‚‚¢‚Ì‚Å */
-		return;
-	}
-	
-	if(time >= m_timeLength){	/* I—¹‚µ‚Ä‚¢‚é */
+#endif
+	if(ch < CTRL_CODE_CMP || ch == ' '){	/* ' '‚ğ“ü‚ê‚é‚æ‚¤‚È‚±‚Æ‚Í‚µ‚È‚¢ */
+	/* •¶š‚¶‚á‚È‚¢ê‡‚Í–³‹‚µ‚Ä‚æ‚¢ */
 		return;
 	}
 	
@@ -1181,10 +1160,6 @@ void CTyping::keyboard_1(char ch, double time){
 		/* poor‚æ‚è‘O‚È‚Ì‚Å‘Å‚Ä‚È‚¢ */
 		return;
 	}
-	
-#if 0
-	m_typeBuffer[m_typeBufferLen++] = ch;
-#endif
 	
 	if(input(ch, m_typeBuffer, m_typeBufferLen, m_lyricsPosition, true, time)){
 //printf("ok\n");
@@ -1199,20 +1174,15 @@ void CTyping::keyboard_1(char ch, double time){
 		m_effect1.insert(X_CIRCLE, Y_CIRCLE, ch, GetColor(170, 170, 255), time);
 		
 		while(!(*m_lyricsPosition).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
+			m_lyricsPosition->clearedTime = time;
 			m_lyricsPosition++;	/* i‚ß‚é */
 		}
 		return;
 	}
-#if 0
-	m_typeBufferLen--;
-#endif
+	
 	char tmpBuffer[TYPE_BUFFER_LEN + 1];
 	int tmpLen;
 	vector<LyricsBlock>::iterator tmpLyricsPosition;
-#if 0
-	tmpBuffer[0] = ch;
-	tmpLen = 1;
-#endif
 	tmpLen = 0;
 	tmpLyricsPosition = m_lyricsPosition;
 	
@@ -1227,11 +1197,6 @@ void CTyping::keyboard_1(char ch, double time){
 			/* ‚·‚Å‚Éƒ^ƒCƒ~ƒ“ƒO‚ªÌ“_‚³‚ê‚½‚Æ‚±‚ë‚âA‹æØ‚è */
 			continue;
 		}
-#if 0
-		if(!(*tmpLyricsPosition).isValid){	/* ‹æØ‚è‚È‚Ç */
-			continue;
-		}
-#endif
 		if(input(ch, tmpBuffer, tmpLen, tmpLyricsPosition, false, time)){
 //printf("ok\n");
 		/* V‚µ‚¢ˆÊ’u‚Å‚»‚Ì“ü—Í‚ª“ü‚Á‚½ */
@@ -1249,6 +1214,7 @@ void CTyping::keyboard_1(char ch, double time){
 			m_typeBufferLen = tmpLen;
 			m_lyricsPosition = tmpLyricsPosition;
 			while(!(*m_lyricsPosition).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú‚ğw‚µ‚Ä‚¢‚é‚È‚ç */
+				m_lyricsPosition->clearedTime = time;
 				m_lyricsPosition++;	/* i‚ß‚é */
 			}
 			return;
@@ -1258,7 +1224,7 @@ void CTyping::keyboard_1(char ch, double time){
 	return;
 }
 
-bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
+bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•Ô‚· */
 	if(m_phase == PHASE_EXIT){	/* I—¹‚·‚é‚±‚Æ‚É‚È‚Á‚Ä‚¢‚é */
 		return false;
 	}
@@ -1283,6 +1249,14 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 		}
 		return true;
 	}
+	if(m_phase == PHASE_FADEOUT){
+		double time = getTime(timeCount);
+		if(time >= m_timeLength + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
+			phase(PHASE_RESULT);
+			return true;
+		}
+	}
+	
 	if(m_phase != PHASE_MAIN){	/* ‚±‚±‚©‚çæ‚ÍƒQ[ƒ€ƒƒCƒ“‚Ì‚Æ‚«‚Ìˆ— */
 		return true;
 	}
@@ -1304,8 +1278,9 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 	}
 	
 	if((*m_lyricsPosition).timeJust == INFTY){
-		/* ÅŒã‚ÌisValid = true‚È‚Ì‚É”Ô•º‚È‚â‚Â‚Ì‘Îô */
-		flag = false;
+		/* ÅŒã‚ÌisValid = true‚È‚Ì‚É”Ô•º‚È‚â‚Â‚Ì‚Æ‚±‚ë‚É‚¢‚é */
+		phase(PHASE_FADEOUT);
+		return true;
 	}
 	
 	if(flag){	/* –ˆ‰ñƒ`ƒFƒbƒN‚·‚é‚Æd‚¢‚©‚à‚µ‚ê‚È‚¢‚Ì‚ÅA•K—v‚È‚Æ‚«‚ÉŒÀ’è‚·‚é */
@@ -1326,11 +1301,6 @@ bool CTyping::idle(double timeCount){	/* –â‘è‚È‚¯‚ê‚Î true ‚ğ•Ô‚· */
 	}
 	
 //printf("]\n");
-	if(time >= m_timeLength + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
-		phase(PHASE_RESULT);
-		return true;
-	}
-	
 	if(m_idleCounter++ % 20 == 0){	/* 20‰ñ‚É1‰ñÀs */
 		/* ‚ğ‰¹Šy‚Æ“¯Šú */
 		synchronizeTime(m_soundHandleMusic, m_challenge.frequencyRate());
@@ -1372,14 +1342,7 @@ void CTyping::synchronizeTime(int soundHandle, double frequencyRate){
 	}
 	
 	double musicTime;
-	/* ‚±‚Ì–â‘è‚ÍìÒ‚Ìƒ‰ƒCƒuƒ‰ƒŠC³‚É‚æ‚è‰ğŒˆ‚³‚ê‚½ */
-//	if(g_config.f_debugMode && g_config.debugTime > 0){	/* “r’†‚©‚çn‚ß‚éƒfƒoƒbƒOƒ‚[ƒh‚Ì‚Æ‚« */
-//		musicTime = ((GetSoundCurrentTime(soundHandle) + g_config.debugTime) 
-//			/ 1000.0) / frequencyRate;
-//	}else{
-//		/* ’ÊíAy ƒoƒO‚ª‚È‚¯‚ê‚Î‚»‚à‚»‚à‚±‚ê‚Å‚æ‚¢‚Í‚¸ z */
 	musicTime = (GetSoundCurrentTime(soundHandle) / 1000.0) / frequencyRate;
-//	}
 	/* y GetSoundCurrentTime ‚ğg‚Á‚Ä‚¢‚é‚Ì‚Å’ˆÓ‚ª•K—v‚©‚à‚µ‚ê‚È‚¢z */
 	/* ‹È‚Ìü”g”‚ğ•Ï‚¦‚Ä‚é‚ÍAÀÛ‚É—¬‚ê‚½ŠÔ‚ğ‚Æ‚é‚½‚ßAü”g”‚Ì”ä‚¾‚¯Š„‚é */
 	double realTime = myGetNowHiPerformanceCount() - m_timeBegin;
@@ -1409,7 +1372,17 @@ double CTyping::getTime(double timeCount) const{	/* timeCount‚ÌŠJn‚©‚ç‚ÌŒo‰
 /* ------------------------------------------------------------ */
 
 void CTyping::phase(int phaseNum){
-	if(phaseNum == PHASE_RESULT){	/* I—¹‚µ‚ÄAƒXƒRƒA•\¦‚É */
+	if(m_phase == PHASE_MAIN){	/* ƒvƒŒƒCŠÔ‚ğ‰ÁZ */
+		if(!(m_isReplay || g_config.f_debugMode)){	/* ’Êí‚Ì‚İ */
+		/* m_challenge.isEasy()‚Å‚à”‚¦‚é */
+			double playTime = getTime();
+			m_ranking.addPlayTime(playTime);
+		}
+	}
+	
+	if(phaseNum == PHASE_FADEOUT){	/* I‚í‚Á‚½‚Ì‚ÅƒtƒF[ƒhƒAƒEƒg‚·‚é */
+		m_timeLength = getTime();	/* I‚í‚Á‚½‚ğ•Û‘¶ */
+	}else if(phaseNum == PHASE_RESULT){	/* I—¹‚µ‚ÄAƒXƒRƒA•\¦‚É */
 		setTime();	/* •\¦ŠJn‚³‚ê‚Ä‚©‚ç‚ÌŠÔ‚ğ—˜—p‚·‚é‚½‚ß‚ÉƒZƒbƒg */
 		m_typeBuffer[0] = '\0';	/* –¼‘O“ü—Í‚Ég‚¤‚Ì‚Åƒoƒbƒtƒ@‚ğƒNƒŠƒA */
 		m_typeBufferLen = 0;
@@ -1425,17 +1398,16 @@ void CTyping::phase(int phaseNum){
 		if(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode){
 			/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡Aƒ‰ƒ“ƒLƒ“ƒO‚É‚Ì‚¹‚È‚¢ */
 			/* ƒŠƒvƒŒƒC‚âƒfƒoƒbƒO‚Í‹L˜^‚µ‚È‚¢ */
-			m_phase = PHASE_EXIT;
+			phase(PHASE_EXIT);
 			return;
 		}else{
 			CScore score(m_typeBuffer, m_score, m_scoreAccuracy, m_scoreTyping,
 				m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
 				m_countAll, m_comboMax, m_challenge);
 			m_rank = m_ranking.update(score, g_config.f_rankingCheckDate, g_config.f_rankingCheckChallenge);
-			if(m_rank >= 0){
-				m_ranking.write();
-			}else{
-				m_phase = PHASE_EXIT;	/* ƒ‰ƒ“ƒNƒCƒ“‚µ‚È‚¯‚ê‚ÎI—¹ */
+			m_ranking.write();
+			if(m_rank < 0){
+				phase(PHASE_EXIT);	/* ƒ‰ƒ“ƒNƒCƒ“‚µ‚È‚¯‚ê‚ÎI—¹ */
 				return;
 			}
 		}
@@ -1868,6 +1840,7 @@ int CTyping::getDrawPosY(int x) const{
 void CTyping::draw(){
 	if(m_phase >= PHASE_RESULT){	/* ƒXƒRƒA•\¦ˆÈ~ */
 		drawResult();
+		drawFlagAbort();
 		return;
 	}
 	double time;
@@ -1878,6 +1851,9 @@ void CTyping::draw(){
 			DrawStringToHandle(50, 370, "Press any key to start.", GetColor(255, 255, 255), m_fontHandleBig);
 		}
 		time = 0.0;	/* n‚Ü‚é‘O‚Í0•b‚Å~‚Ü‚Á‚Ä‚¢‚é */
+		if(g_config.f_debugMode && g_config.debugTime > 0){	/* “r’†‚©‚çn‚ß‚éƒfƒoƒbƒOƒ‚[ƒh‚Ì‚Æ‚« */
+			time = g_config.debugTime / 1000.0;
+		}
 	}else{
 		time = getTime();	/* ŠJn‚©‚ç‚ÌŒo‰ß•b‚ğæ“¾ */
 	}
@@ -1972,12 +1948,12 @@ void CTyping::draw(){
 			if(!(*i).isValid){	/* ‰ÌŒ‚ÌØ‚ê–Ú */
 				if(timeDiff < 0.0){	/* Ø‚ê–Ú‚Í”»’èˆÊ’u‚É—ˆ‚é‚æ‚è‘O‚Ì‚Æ‚«‚¾‚¯•\¦ */
 					double alpha = 1.0;
-					if(i < m_lyricsPosition){	/* ‚»‚êˆÈ‘O‚ğ‘Å‚¿I‚í‚Á‚½‚Æ‚« */
-						if((*i).clearedTime < 0){
-							(*i).clearedTime = time;
-						}
-						alpha = ((*i).timeJust - time) / ((*i).timeJust - (*i).clearedTime);
-						alpha *= alpha*alpha;
+					if((*i).clearedTime >= 0.0){	/* Ø‚ê–Ú‚ªÁ‚¦‚Ä‚¢‚é‚Æ‚« */
+						double t = ((*i).timeJust - time) / ((*i).timeJust - (*i).clearedTime);
+						alpha = t*t*t;
+					}else if(i < m_lyricsPosition){	/* Ø‚ê–Ú‚ªÁ‚³‚ê‚¸‚ÉŸ‚Éi‚ñ‚¾ê‡ */
+					/* ‚Â‚Ü‚èA‘Å‚¿Ø‚ç‚¸‚ÉAV‚µ‚¢•”•ª‚ğ‘‚ß‚É‘Å‚¿n‚ß‚½ê‡i‚ÉŒÀ‚é‚©‚ÈHj */
+						continue;	/* •\¦‚µ‚È‚¢ */
 					}
 					/* ŠDF‚Ì‰~‚ğ—¬‚· */
 					SetDrawBlendMode(DX_BLENDMODE_ALPHA, 51 * alpha);	/* alpha * 1/5‚Ì•s“§–¾“x‚Å•`‰æ */
@@ -2182,12 +2158,13 @@ void CTyping::draw(){
 	
 	m_effect1.draw(time);	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 	
-	if(time >= m_timeLength){	/* ƒtƒF[ƒhƒAƒEƒg */
+	if(m_phase == PHASE_FADEOUT){	/* ƒtƒF[ƒhƒAƒEƒg */
 		double xTime = (time - m_timeLength) / SEC_FADEOUT;
 		if(xTime >= 1.0){
 			xTime = 1.0;
 		}
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * xTime);
+		double tmp = ((-2.0*xTime)+3)*xTime*xTime;
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * tmp);
 		DrawBox(0, 0, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 		/*
@@ -2196,6 +2173,8 @@ void CTyping::draw(){
 		DrawBox(0, H_WINDOW - h, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
 		*/
 	}
+	
+	drawFlagAbort();
 }
 
 void CTyping::drawResult(){
@@ -2265,7 +2244,7 @@ void CTyping::drawResult(){
 			int strWidth;
 			strWidth = GetDrawFormatStringWidthToHandle( m_fontHandleBig,
 				"%d ˆÊ‚Éƒ‰ƒ“ƒNƒCƒ“‚µ‚Ü‚µ‚½", m_rank + 1);
-			int boxWidth = strWidth + 100;
+			int boxWidth = strWidth + 80;
 			if(boxWidth > W_WINDOW){
 				boxWidth = W_WINDOW;
 			}
@@ -2279,6 +2258,24 @@ void CTyping::drawResult(){
 		}
 	}
 	return;
+}
+
+void CTyping::drawFlagAbort(){
+	if(m_flagAbort){
+		const char *str = "‚à‚¤ˆê“xEsc‚ğ‰Ÿ‚·‚Æ’†’f‚µ‚Ü‚·";
+		int strWidth;
+		strWidth = GetDrawStringWidthToHandle(str, strlen(str), m_fontHandleBig);
+		int boxWidth = strWidth + 80;
+		if(boxWidth > W_WINDOW){
+			boxWidth = W_WINDOW;
+		}
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 170);	/* i1/3‚Ìj”¼“§–¾‚Å•`‰æ */
+		DrawBox(320 - boxWidth / 2, 200, 320 + boxWidth/2, 280, GetColor(170, 170, 170), TRUE);
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 192);	/* i1/4‚Ìj”¼“§–¾‚Å•`‰æ */
+		DrawStringToHandle(320 - strWidth / 2, 240 - 18,
+			str, GetColor(0, 0, 0), m_fontHandleBig);
+		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);	/* ƒuƒŒƒ“ƒh‚µ‚È‚¢‚æ‚¤‚É–ß‚· */
+	}
 }
 
 /* ------------------------------------------------------------ */
@@ -2307,10 +2304,9 @@ g_check.rap(GetColor(0, 0, 16));
 			if(ch == 0){	/* ƒoƒbƒtƒ@‚ª‹ó‚É‚È‚ê‚ÎƒL[“ü—Íˆ—I—¹ */
 				break;
 			}
-			if(ch == CTRL_CODE_ESC){	/* Esc‚ÅƒQ[ƒ€‚ğ’†’f */
-				goto L1;
-			}
-			//if(ch != 0 && ch >= CTRL_CODE_CMP){
+			//if(ch == CTRL_CODE_ESC){	/* Esc‚ÅƒQ[ƒ€‚ğ’†’f */
+			//	goto L1;
+			//}
 			keyboard(ch, timeCount);
 		}
 		
@@ -2319,7 +2315,7 @@ g_check.rap(GetColor(0, 16, 0));
 			break;
 		}
 	}
-L1:
+//L1:
 	return;
 }
 
@@ -2589,9 +2585,10 @@ public:
 	
 	void draw(int y, int brightness);
 	void drawComment(int x, int y);
+	void drawPlayData(int x, int y);
 	void drawRanking(int x, int y, int rankBegin, int rankLen);
 	
-	bool titleCmp(char *buf);
+	bool titleCmp(const char *buf);
 	//void renewFont();
 private:
 	void createFont();
@@ -2729,6 +2726,10 @@ void MusicInfo::drawComment(int x, int y){
 	}
 }
 
+void MusicInfo::drawPlayData(int x, int y){
+	m_ranking.drawPlayData(x, y, m_fontHandleNormal);
+}
+
 
 void MusicInfo::drawRanking(int x, int y, int rankBegin, int rankLen){
 	m_ranking.draw(x, y, rankBegin, rankLen, m_fontHandleRanking);
@@ -2740,7 +2741,7 @@ void MusicInfo::renewFont(){
 }
 */
 
-bool MusicInfo::titleCmp(char *buf){
+bool MusicInfo::titleCmp(const char *buf){
 /* y ŠÖ”–¼“ªˆ«‚¢B—vC³ z */
 /* ƒ^ƒCƒgƒ‹‚Ìˆê•”‚Æˆê’v‚·‚é‚©‚ğ•Ô‚· */
 	return (strstr(m_title, buf) != NULL) ? true : false;
@@ -2780,12 +2781,18 @@ vector<MusicInfo>::iterator nextInfo(vector<MusicInfo>::iterator itr){
 	return itr;
 }
 
+vector<MusicInfo>::iterator randomInfo(){
+	return &g_infoArray[GetRand(g_infoArray.size() - 1)];
+}
+
 /* ============================================================ */
 
 struct DrawMainInfo{
 public:
+	vector<MusicInfo>::iterator musicInfoItr;	/* MusicInfo‚Ì”z—ñ‚Ì‚Ç‚±‚ğw‚µ‚Ä‚¢‚é‚© */
 	int rankingPos;
 	int rankingFlag;	/* true:Ú×ƒ‰ƒ“ƒLƒ“ƒOAfalse:1ˆÊ‚Ì‚İ‚Ü‚½‚ÍAƒRƒƒ“ƒg•\¦ */
+	
 	int drawPosX;
 	double drawPosY;
 	int *addHeight;
@@ -2794,20 +2801,28 @@ private:
 	int addHeightWait;	/* 0‚©‚ç0ˆÈŠO‚É‚È‚é‚É‘Ò‚ÂB‚»‚ê‚ğ”‚¦‚é */
 public:
 	DrawMainInfo();
-	void reset();
+	void resetPos();
+	
 	void step();
+	
 	void next();
 	void prev();
+	
 	void left();
 	void right();
+	
+	void find(const char *buf);
+	void randomSelect();
 };
 
 DrawMainInfo::DrawMainInfo(){
+	musicInfoItr = g_infoArray.begin();
+	
 	addHeight = _addHeight + 10;
-	reset();
+	resetPos();
 }
 
-void DrawMainInfo::reset(){
+void DrawMainInfo::resetPos(){
 	rankingPos = 0;
 	rankingFlag = false;
 	drawPosX = 0;
@@ -2827,7 +2842,7 @@ void DrawMainInfo::step(){
 			}else if(rankingPos == 0){
 				h = H_RANKING1;
 			}else{
-				h = H_COMMENT;
+				h = H_MUSIC_INFO_SUB;
 			}
 			if(addHeight[0] == 0 && addHeightWait > 0){
 			/* •0‚©‚çŠJ‚±‚¤‚Æ‚µ‚Ä‚¢‚ÄA‚»‚ê‚É•K—v‚ÈŠÔŒo‰ß‚µ‚Ä‚¢‚È‚¢ */
@@ -2866,6 +2881,8 @@ void DrawMainInfo::step(){
 }
 
 void DrawMainInfo::next(){
+	musicInfoItr = nextInfo(musicInfoItr);	/* Ÿ‚Ì‹È */
+	
 	drawPosY += MUSIC_INFO_HEIGHT + (addHeight[0] + addHeight[1]) / 2.0;
 	for(int i=-10; i<10; i++){
 		addHeight[i] = addHeight[i+1];
@@ -2879,6 +2896,8 @@ void DrawMainInfo::next(){
 }
 
 void DrawMainInfo::prev(){
+	musicInfoItr = prevInfo(musicInfoItr);	/* ‘O‚Ì‹È */
+	
 	drawPosY -= MUSIC_INFO_HEIGHT + (addHeight[0] + addHeight[-1]) / 2.0;
 	for(int i=10; i>-10; i--){
 		addHeight[i] = addHeight[i-1];
@@ -2921,12 +2940,31 @@ void DrawMainInfo::right(){
 	}
 }
 
+void DrawMainInfo::find(const char *buf){
+	if(strlen(buf) > 0){	/* ‰½‚©“ü—Í‚³‚ê‚Ä‚¢‚ê‚ÎŒŸõ */
+		vector<MusicInfo>::iterator tmpItr = musicInfoItr;
+		do{
+			musicInfoItr = nextInfo(musicInfoItr);
+			if(musicInfoItr->titleCmp(buf)){
+				resetPos();
+				/* ŒŸõ‚µ‚½‚à‚Ì‚ÍÅ‰‚©‚ç’†S‚É•\¦ */
+				break;
+			}
+		}while(musicInfoItr != tmpItr);	/* Œ³‚ÌêŠ‚É–ß‚Á‚Ä‚­‚é‚Ü‚Å */
+	}
+}
+
+void DrawMainInfo::randomSelect(){
+	musicInfoItr = randomInfo();
+	resetPos();
+}
+
 /* ============================================================ */
 
 /* rankingPosˆÊ‚©‚ç‚Ìƒ‰ƒ“ƒLƒ“ƒOi•‰‚ÌƒRƒƒ“ƒgj‚ğ(x,y)‚©‚ç•`‰æB‚‚³‚Íh‚É§ŒÀ */
 void drawMainRanking(vector<MusicInfo>::iterator itr, int rankingPos,
 		int x, int y, int h){
-	int yMin = y, yMax =y+h;
+	int yMin = y, yMax = y+h;
 	if(yMin < 0){
 		yMin = 0;
 	}
@@ -2937,38 +2975,40 @@ void drawMainRanking(vector<MusicInfo>::iterator itr, int rankingPos,
 	if(rankingPos >= 0){
 		/* ƒ‰ƒ“ƒLƒ“ƒO•\¦irankingPos‚©‚çRANKING_DRAW_LENŒÂj */
 		/* 1ˆÊ‚µ‚©•\¦‚µ‚È‚¢‚à‰B‚ê‚é‚Ì‚Å–â‘è‚È‚µ */
-		(*itr).drawRanking(x, y + 6, rankingPos, RANKING_DRAW_LEN);	/* 6==(60-48)/2 */
+		itr->drawRanking(x, y + 6, rankingPos, RANKING_DRAW_LEN);	/* 6==(60-48)/2 */
 	}else{
 		/* ƒRƒƒ“ƒg•\¦ */
-		(*itr).drawComment(x, y + 6);
+		itr->drawComment(x, y + 6);
+		itr->drawPlayData(x, y + (6+H_COMMENT+4));
 	}
 }
 
 /* ƒƒCƒ“‰æ–Êi‹È‘I‘ğ‰æ–Êj‚ğ•`‚­ */
-void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
-		CChallenge &challenge, const char *name, int inputHandle, int fontHandleDefault){
+void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
+		const char *name, int inputHandle, int fontHandleDefault){
 	//if(dInfo.rankingPos == -RANKING_DRAW_LEN){
 	int dy = 180 + (MUSIC_INFO_HEIGHT - dInfo.addHeight[0])/2
 		+ (int)floor(dInfo.drawPosY + 0.5);
 	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* •`‰æ”ÍˆÍ‚ğ§ŒÀ */
 	{
 		DrawBox(10, dy - MUSIC_INFO_HEIGHT, W_WINDOW - 10, dy + dInfo.addHeight[0], GetColor(32, 32, 64), TRUE);
-		(*infoArrayItr).draw(dy - MUSIC_INFO_HEIGHT, 255);	/* ƒ^ƒCƒgƒ‹‚È‚Ç•\¦ */
+		dInfo.musicInfoItr->draw(dy - MUSIC_INFO_HEIGHT, 255);	/* ƒ^ƒCƒgƒ‹‚È‚Ç•\¦ */
 		DrawLine(40, dy, W_WINDOW - 40, dy, GetColor(64, 64, 64));
 		
-		drawMainRanking(infoArrayItr, dInfo.rankingPos, dInfo.drawPosX, dy, dInfo.addHeight[0]);
+		drawMainRanking(dInfo.musicInfoItr, dInfo.rankingPos, dInfo.drawPosX, dy, dInfo.addHeight[0]);
 		if(dInfo.drawPosX < 0){	/* ‰E‚Ì‚ğ•`‚­ */
-			drawMainRanking(infoArrayItr, dInfo.rankingPos + RANKING_DRAW_LEN,
+			drawMainRanking(dInfo.musicInfoItr, dInfo.rankingPos + RANKING_DRAW_LEN,
 				dInfo.drawPosX + W_WINDOW, dy, dInfo.addHeight[0]);
 		}else if(dInfo.drawPosX > 0){	/* ¶‚Ì‚ğ•`‚­ */
-			drawMainRanking(infoArrayItr, dInfo.rankingPos - RANKING_DRAW_LEN,
+			drawMainRanking(dInfo.musicInfoItr, dInfo.rankingPos - RANKING_DRAW_LEN,
 				dInfo.drawPosX - W_WINDOW, dy, dInfo.addHeight[0]);
 		}
+		/* ‘I‚ñ‚¾‚à‚Ì‚ªŒ©‚¦‚Ä‚¢‚È‚­‚ÄA2‚Â¶‚â‰E‚ªŒ©‚¦‚Ä‚¢‚éê‡‚Æ‚©‚à‚ ‚é‚ªA‚í‚´‚í‚´•`‚©‚È‚¢ */
 	}
 	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* •`‰æ”ÍˆÍ‚ğ§ŒÀ */
 	/* ƒ^ƒCƒgƒ‹‚È‚Ç•\¦A…•½ü‚Å‹æØ‚é */
 	{	/* ‘O‚Ì‹È */
-		vector<MusicInfo>::iterator itr = infoArrayItr;
+		vector<MusicInfo>::iterator itr = dInfo.musicInfoItr;
 		int y = dy - MUSIC_INFO_HEIGHT;
 		int cnt = 0;
 		while(y >= 0){	/* ˜g“à‚ÌŠÔ */
@@ -2981,7 +3021,7 @@ void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 		}
 	}
 	{	/* Œã‚Ì‹È */
-		vector<MusicInfo>::iterator itr = infoArrayItr;
+		vector<MusicInfo>::iterator itr = dInfo.musicInfoItr;
 		int y = dy + dInfo.addHeight[0];
 		int cnt = 0;
 		while(y <360){	/* ˜g“à‚ÌŠÔ */
@@ -3003,16 +3043,16 @@ void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 		DrawLine(10, 350, W_WINDOW - 10, 350, GetColor(128, 128, 128));
 		
 		/* ƒ^ƒCƒgƒ‹‚È‚Ç•\¦ */
-		(*infoArrayItr).draw(20, 255);
+		(*musicInfoItr).draw(20, 255);
 		
 		/* …•½ü‚Å‹æØ‚é */
 		DrawLine(40, 90, W_WINDOW - 40, 90, GetColor(64, 64, 64));
 		
 		if(dInfo.rankingPos >= 0){
 			/* ƒ‰ƒ“ƒLƒ“ƒO•\¦irankingPos‚©‚çRANKING_DRAW_LENŒÂj */
-			(*infoArrayItr).drawRanking(90 + 10, dInfo.rankingPos, RANKING_DRAW_LEN);
+			(*musicInfoItr).drawRanking(90 + 10, dInfo.rankingPos, RANKING_DRAW_LEN);
 		}else{
-			(*infoArrayItr).drawComment(90 + 10);
+			(*musicInfoItr).drawComment(90 + 10);
 		}
 	}
 #endif
@@ -3020,12 +3060,18 @@ void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	
 	if(inputHandle == -1){	/* ŒŸõˆÈŠO */
-		DrawStringToHandle(10, 370, "ª/«: ‹È‘I‘ğ, ©/¨: ƒ‰ƒ“ƒLƒ“ƒO•\¦,   F: ‹ÈŒŸõ, Enter: ‹ÈŒˆ’è",
+		DrawStringToHandle(10, 370, "ª/«: ‹È‘I‘ğ,   F: ‹ÈŒŸõ, R: ƒ‰ƒ“ƒ_ƒ€,   F5: ƒŠƒXƒgÄ“Ç,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
-		DrawStringToHandle(10, 390, "Tab: Window ©¨ FullScreen, R: ƒŠƒXƒgÄ“Ç,",
+		DrawStringToHandle(10, 390, "©/¨: î•ñ/ƒ‰ƒ“ƒLƒ“ƒO•\¦, Tab: ‘S‰æ–ÊØ‚è‘Ö‚¦,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
+		{
+			char *str = "Enter: Œˆ’è";
+			int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
+			DrawStringToHandle(W_WINDOW - 10 - width, 370, str,
+				GetColor(255, 255, 255), fontHandleDefault);	/* ‰E‚©‚ç10‚Ì‚Æ‚±‚ë‚É•`‰æ */
+		}
 		{
 			char *str = "!/?: Replay Save/Load";
 			int width = GetDrawStringWidthToHandle(str, strlen(str), fontHandleDefault);
@@ -3035,7 +3081,7 @@ void drawMain(vector<MusicInfo>::iterator infoArrayItr, DrawMainInfo &dInfo,
 		
 		DrawStringToHandle(10, H_WINDOW - 65, "[H]idden, [S]udden, [C]ircleStealth, [L]yricsStealth,",
 			GetColor(255, 255, 255), fontHandleDefault);
-		DrawStringToHandle(10, H_WINDOW - 45, "</>: Speed Down/Up, +/-: KeyShift,   Q: sin, W: cos, E: tan,",
+		DrawStringToHandle(10, H_WINDOW - 45, "</>: Speed Down/Up, +/-: KeyShift,   F6/F7/F8: sin/cos/tan,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		{
 			char *str = "Reset to [D]efault";
@@ -3234,16 +3280,13 @@ void editChallenge(CChallenge &challenge, char ch){
 	case '-':
 		challenge.keyDown();
 		break;
-	case 'q':
-	case 'Q':
+	case CTRL_CODE_F6:
 		challenge.flip(CHALLENGE_SIN);
 		break;
-	case 'w':
-	case 'W':
+	case CTRL_CODE_F7:
 		challenge.flip(CHALLENGE_COS);
 		break;
-	case 'e':
-	case 'E':
+	case CTRL_CODE_F8:
 		challenge.flip(CHALLENGE_TAN);
 		break;
 	case 'd':
@@ -3277,11 +3320,6 @@ bool main2(bool &isWindowMode, const char *name){
 		GetColor( 255 , 255 ,  20 )
 	);
 	
-	vector<MusicInfo>::iterator infoArrayItr = g_infoArray.begin();
-	//int rankingPos = -RANKING_DRAW_LEN;
-	/* -RANKING_DRAW_LEN‚È‚çA1ˆÊ‚Ì‚İ•\¦B‚±‚¤‚µ‚Ä‚¨‚­‚ÆARANKING_DRAW_LENˆÊ‚¸‚Â•\¦‚·‚é‚Æ‚«‚Æ“s‡‚ª—Ç‚¢B */
-	/* -2*RANKING_DRAW_LEN‚È‚çƒRƒƒ“ƒg•\¦ */
-	
 	CTyping typing;
 	
 	typing.setName(name);
@@ -3293,7 +3331,7 @@ bool main2(bool &isWindowMode, const char *name){
 		}
 		
 		//ClearDrawScreen();
-		drawMain(infoArrayItr, dInfo, challenge, name, inputHandle, fontHandleDefault);
+		drawMain(dInfo, challenge, name, inputHandle, fontHandleDefault);
 		dInfo.step();
 		myScreenFlip();
 		
@@ -3303,8 +3341,7 @@ bool main2(bool &isWindowMode, const char *name){
 			case CTRL_CODE_ESC:	/* I—¹ */
 				retValue = false;
 				goto L1;
-			case 'r':	/* Ä“Ç‚İ‚İ */
-			case 'R':
+			case CTRL_CODE_F5:	/* Ä“Ç‚İ‚İ */
 				retValue = true;
 				goto L1;
 			case CTRL_CODE_TAB:	/* Window ©¨ FullScreen */
@@ -3313,21 +3350,21 @@ bool main2(bool &isWindowMode, const char *name){
 				goto L1;
 			case CTRL_CODE_CR:	/* ƒQ[ƒ€ŠJn */
 				typing.setChallenge(challenge);	/* ƒ[ƒh‘O‚Éƒ`ƒƒƒŒƒ“ƒW‚ğİ’è */
-				(*infoArrayItr).load(typing);	/* ƒQ[ƒ€î•ñu‚Év•ˆ–ÊEƒnƒCƒXƒRƒA‚Ìƒtƒ@ƒCƒ‹‚ğƒ[ƒh */
-				/* ª‚±‚ê‚ğtyping.nanka(infoArrayItr)‚İ‚½‚¢‚É‚µ‚½‚¢‚ñ‚¾‚ªA‚¢‚ë‚¢‚ë–Ê“| */
+				(*dInfo.musicInfoItr).load(typing);	/* ƒQ[ƒ€î•ñu‚Év•ˆ–ÊEƒnƒCƒXƒRƒA‚Ìƒtƒ@ƒCƒ‹‚ğƒ[ƒh */
+				/* ª‚±‚ê‚ğtyping.nanka(musicInfoItr)‚İ‚½‚¢‚É‚µ‚½‚¢‚ñ‚¾‚ªA‚¢‚ë‚¢‚ë–Ê“| */
 				typing.mainLoop();	/* •`‰æ‚Æ‚©‚ğCTyping‚É”C‚¹‚é */
 				typing.unload();	/* I—¹ˆ— */
 				
-				dInfo.reset();
+				dInfo.resetPos();
 				/* –ß‚Á‚Ä‚«‚½‚Æ‚«‚ÉAÚ×ƒ‰ƒ“ƒLƒ“ƒO‚©‚ç”²‚¯‚é */
 				/* i‚È‚ñ‚Æ‚È‚­A1ˆÊ‚Éƒ‰ƒ“ƒNƒCƒ“‚µ‚½‚Ì‚É‚Ù‚©‚Ì‚Æ‚±‚ë‚ª•\¦‚³‚ê‚Ä‚½‚ç”ß‚µ‚¢j */
 				
-				(*infoArrayItr).readRanking();	/* ƒ‰ƒ“ƒLƒ“ƒO‚ÍXV‚³‚ê‚Ä‚¢‚é‚©‚à‚µ‚ê‚È‚¢ */
+				(*dInfo.musicInfoItr).readRanking();	/* ƒ‰ƒ“ƒLƒ“ƒO‚ÍXV‚³‚ê‚Ä‚¢‚é‚©‚à‚µ‚ê‚È‚¢ */
 				break;
 			/* ÅŒã‚ÌƒQ[ƒ€‚Ì‚ğÄ¶ */
 			/*
 			case '@':
-				(*infoArrayItr).load(typing);
+				(*musicInfoItr).load(typing);
 				typing.replayLoop();
 				typing.unload();
 				break;
@@ -3340,11 +3377,15 @@ bool main2(bool &isWindowMode, const char *name){
 					break;	/* ƒŠƒvƒŒƒC‚Ì“Ç‚İ‚İ‚É¸”s‚µ‚½ê‡‚Í–ß‚é */
 				}
 				typing.setChallenge(challenge);	/* ƒ[ƒh‘O‚Éƒ`ƒƒƒŒƒ“ƒW‚ğİ’è */
-				(*infoArrayItr).load(typing);
+				(*dInfo.musicInfoItr).load(typing);
 				typing.replayLoop();
 				typing.unload();
 				break;
-			case 'f':
+			case 'r':	/* ƒ‰ƒ“ƒ_ƒ€‘I‘ğ */
+			case 'R':
+				dInfo.randomSelect();
+				break;
+			case 'f':	/* ŒŸõ */
 			case 'F':
 				/* ƒLƒƒƒ“ƒZƒ‹‚ ‚èA”¼Šp‚Ü‚½‚Í”š‚ÉŒÀ’è‚Í‚µ‚È‚¢ */
 				inputHandle = MakeKeyInput(64, TRUE, FALSE, FALSE);
@@ -3354,11 +3395,9 @@ bool main2(bool &isWindowMode, const char *name){
 				SetActiveKeyInput(inputHandle);
 				break;
 			case CTRL_CODE_UP:	/* ‘O‚Ì‹È‚Ö */
-				infoArrayItr = prevInfo(infoArrayItr);
 				dInfo.prev();
 				break;
 			case CTRL_CODE_DOWN:	/* Œã‚Ì‹È‚Ö */
-				infoArrayItr = nextInfo(infoArrayItr);
 				dInfo.next();
 				break;
 			case CTRL_CODE_LEFT:	/* ãˆÊ‚ğ•\¦ */
@@ -3380,23 +3419,13 @@ bool main2(bool &isWindowMode, const char *name){
 			case 1:	/* “ü—ÍI—¹ */
 				char buf[256];
 				GetKeyInputString(buf, inputHandle);
-				{	/* ŒŸõ */
-					vector<MusicInfo>::iterator tmpItr = infoArrayItr;
-					do{
-						infoArrayItr = nextInfo(infoArrayItr);
-						if(infoArrayItr->titleCmp(buf)){
-							dInfo.reset();
-							/* ŒŸõ‚µ‚½‚à‚Ì‚ÍÅ‰‚©‚ç’†S‚É•\¦ */
-							break;
-						}
-					}while(infoArrayItr != tmpItr);	/* Œ³‚ÌêŠ‚É–ß‚Á‚Ä‚­‚é‚Ü‚Å */
-				}
+				dInfo.find(buf);
 				/* ‚±‚±‚ÅA break; ‚µ‚È‚¢ */
 			case 2:
 				/* ã‚Ìê‡‚É‰Á‚¦AƒLƒƒƒ“ƒZƒ‹‚³‚ê‚½ê‡ */
 				DeleteKeyInput(inputHandle);
 				inputHandle = -1;
-				ClearKeyboardInput();	/* ƒL[“ü—Í‚ğÁ‚µ‚Ä‚¨‚­ */
+				ClearKeyboardInput();	/* ƒL[“ü—Íi©•ª‚Åˆ—‚µ‚Ä‚é•ûj‚ğÁ‚µ‚Ä‚¨‚­ */
 				break;
 			default:	/* ‰½‚©ƒGƒ‰[i-1‚Ì‚Æ‚«j */
 				throw __LINE__;
