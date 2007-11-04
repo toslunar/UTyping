@@ -1,7 +1,16 @@
 #ifndef __UTYPING_UTILITY
 #define __UTYPING_UTILITY
 
+enum{
+EDIT_BUFFER_NONE,
+EDIT_BUFFER_OK,
+EDIT_BUFFER_CANCEL,
+};
+
 /* 雑多な関数 */
+
+bool isJapanese1st(char ch);
+bool isSubstr(const char *s1, const char *s2);	/* s1 が s2 の部分文字列かを返す */
 
 bool readInt(int &n, FILE *fp);
 void writeInt(int n, FILE *fp);
@@ -15,6 +24,9 @@ void getDirFromPath(char *directoryName, const char *fileName);
 void getOrdinal(char *buf, int n);
 /* 序数を取得 */
 
+void getTimeStr(char *buf, int sec);
+/* 秒から時間の文字列を得る */
+
 int getDateInt();
 /* 日付を整数で保存 */
 void getDateStrFromInt(char *buf, int date);
@@ -25,6 +37,33 @@ void getDateStr(char *buf);
 
 void outputError(char *str);
 /* エラー出力 */
+
+//int editBuffer_1(char ch, char buf[], int &len);
+
+/* ============================================================ */
+
+bool isJapanese1st(char ch){
+	return (ch&0x80)!=0;
+}
+
+bool isSubstr(const char *s1, const char *s2){
+	int len1 = strlen(s1);
+	if(len1 == 0){
+		return true;
+	}
+	for(const char *ptr = s2; *ptr != '\0'; ptr++){
+		if(memcmp(s1, ptr, len1) == 0){	/* 一致した */
+			return true;
+		}
+		if(isJapanese1st(*ptr)){	/* 日本語1バイト目だったなら */
+			ptr++;	/* 次のバイトからにはしない */
+			if(*ptr == '\0'){
+				break;
+			}
+		}
+	}
+	return false;
+}
 
 bool readInt(int &n, FILE *fp){
 	int b[4];
@@ -128,6 +167,26 @@ void getOrdinal(char *buf, int n){
 	}
 }
 
+void getTimeStr(char *buf, int sec){
+	int min,hour,day;
+	min = sec/60;
+	sec %= 60;
+	hour = min/60;
+	min %= 60;
+	day = hour/24;
+	hour %= 24;
+	
+	if(day > 0){
+		sprintf(buf, "%d 日 %2d 時間 %2d 分 %2d 秒", day, hour, min, sec);
+	}else if(hour > 0){
+		sprintf(buf, "%d 時間 %2d 分 %2d 秒", hour, min, sec);
+	}else if(min > 0){
+		sprintf(buf, "%d 分 %2d 秒", min, sec);
+	}else{
+		sprintf(buf, "%d 秒", sec);
+	}
+}
+
 int getDateInt(){
 	DATEDATA date;
 	GetDateTime(&date);
@@ -159,6 +218,37 @@ void outputError(char *str){
 }
 
 /* ------------------------------------------------------------ */
+/* キー入力でバッファを操作する */
+
+#define editBuffer(ch, buf, len) editBuffer_1(ch, buf, len, sizeof(buf))
+
+int editBuffer_1(char ch, char *buf, int &len, int bufSize){
+	if(ch < CTRL_CODE_CMP){	/* 文字コードでないとき */
+		switch(ch){
+		case CTRL_CODE_CR:	/* 改行なら確定 */
+			return EDIT_BUFFER_OK;
+		case CTRL_CODE_BS:	/* BackSpaceや左キーやDeleteなら */
+		case CTRL_CODE_LEFT:
+		case CTRL_CODE_DEL:
+			if(len > 0){
+				len--;	/* 一文字削除 */
+			}
+			buf[len] = '\0';
+			break;
+		case CTRL_CODE_ESC:
+			return EDIT_BUFFER_CANCEL;
+		}
+		return 0;
+	}
+	if(len < bufSize - 1){
+		buf[len++] = ch;
+		buf[len] = '\0';
+	}
+	return 0;
+}
+
+/* ============================================================ */
+
 #if 0
 HANDLE newThread(LPTHREAD_START_ROUTINE lpStartAddress,LPVOID lpParameter);
 void deleteThread(HANDLE handle);
