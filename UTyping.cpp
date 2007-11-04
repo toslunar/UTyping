@@ -2744,7 +2744,7 @@ void MusicInfo::renewFont(){
 bool MusicInfo::titleCmp(const char *buf){
 /* 【 関数名頭悪い。要修正 】 */
 /* タイトルの一部と一致するかを返す */
-	return (strstr(m_title, buf) != NULL) ? true : false;
+	return isSubstr(buf, m_title);
 }
 
 void MusicInfo::createFont(){
@@ -2798,7 +2798,9 @@ public:
 	int *addHeight;
 private:
 	int _addHeight[21];
-	int addHeightWait;	/* 0から0以外になる時に待つ。それを数える */
+	int m_addHeightWait;	/* 0から0以外になる時に待つ。それを数える */
+	
+	char m_findStr[256];	/* 検索に用いる文字列。再検索用 */
 public:
 	DrawMainInfo();
 	void resetPos();
@@ -2812,13 +2814,16 @@ public:
 	void right();
 	
 	void find(const char *buf);
+	void DrawMainInfo::findNext();
 	void randomSelect();
 };
 
 DrawMainInfo::DrawMainInfo(){
 	musicInfoItr = g_infoArray.begin();
 	
-	addHeight = _addHeight + 10;
+	addHeight = _addHeight + 10;	/* 【これコピーした時にまずい予感】 */
+	strcpy(m_findStr, "");
+	
 	resetPos();
 }
 
@@ -2830,7 +2835,7 @@ void DrawMainInfo::resetPos(){
 	for(int i=-10; i<=10; i++){
 		addHeight[i] = 0;
 	}
-	addHeightWait = 25;
+	m_addHeightWait = 25;
 }
 
 void DrawMainInfo::step(){
@@ -2844,9 +2849,9 @@ void DrawMainInfo::step(){
 			}else{
 				h = H_MUSIC_INFO_SUB;
 			}
-			if(addHeight[0] == 0 && addHeightWait > 0){
+			if(addHeight[0] == 0 && m_addHeightWait > 0){
 			/* 幅0から開こうとしていて、それに必要な時間経過していない */
-				addHeightWait--;
+				m_addHeightWait--;
 				continue;
 			}
 		}
@@ -2889,7 +2894,7 @@ void DrawMainInfo::next(){
 	}
 	addHeight[10] = 0;
 	
-	addHeightWait = 25;
+	m_addHeightWait = 25;
 	
 	rankingPos = 0;
 	rankingFlag = false;
@@ -2904,7 +2909,7 @@ void DrawMainInfo::prev(){
 	}
 	addHeight[-10] = 0;
 	
-	addHeightWait = 25;
+	m_addHeightWait = 25;
 	
 	rankingPos = 0;
 	rankingFlag = false;
@@ -2915,7 +2920,7 @@ void DrawMainInfo::left(){
 		return;
 	}
 	
-	addHeightWait /= 2;	/* 詳細ランキングとかを見たい時には時間を減らしてあげる */
+	m_addHeightWait /= 2;	/* 詳細ランキングとかを見たい時には時間を減らしてあげる */
 	
 	if(rankingPos == 0 && rankingFlag){	/* 1位のみ←1～RANKING_DRAW_LEN位のとき */
 		rankingFlag = false;
@@ -2930,7 +2935,7 @@ void DrawMainInfo::right(){
 		return;
 	}
 	
-	addHeightWait /= 2;	/* 詳細ランキングとかを見たい時には時間を減らしてあげる */
+	m_addHeightWait /= 2;	/* 詳細ランキングとかを見たい時には時間を減らしてあげる */
 	
 	if(rankingPos == 0 && !rankingFlag){	/* 1位のみ→1～RANKING_DRAW_LEN位のとき */
 		rankingFlag = true;
@@ -2941,11 +2946,16 @@ void DrawMainInfo::right(){
 }
 
 void DrawMainInfo::find(const char *buf){
-	if(strlen(buf) > 0){	/* 何か入力されていれば検索 */
+	strcpy(m_findStr, buf);
+	findNext();
+}
+
+void DrawMainInfo::findNext(){
+	if(strlen(m_findStr) > 0){	/* 何か入力されていれば検索 */
 		vector<MusicInfo>::iterator tmpItr = musicInfoItr;
 		do{
 			musicInfoItr = nextInfo(musicInfoItr);
-			if(musicInfoItr->titleCmp(buf)){
+			if(musicInfoItr->titleCmp(m_findStr)){
 				resetPos();
 				/* 検索したものは最初から中心に表示 */
 				break;
@@ -3098,6 +3108,8 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 	}else{
 		//SetDrawArea(0, 360, W_WINDOW, H_WINDOW - 25);
 		DrawStringToHandle(10, 370, "検索曲名:",
+			GetColor(255, 255, 255), fontHandleDefault);
+		DrawStringToHandle(10, H_WINDOW - 45, "Enter: 検索, （検索後に）F3: 次を検索",
 			GetColor(255, 255, 255), fontHandleDefault);
 		DrawKeyInputModeString(W_WINDOW, H_WINDOW - 45);	//(W_WINDOW, H_WINDOW - 25);
 		DrawKeyInputString(10, 390, inputHandle);	/* 検索文字列を表示 */
@@ -3393,6 +3405,9 @@ bool main2(bool &isWindowMode, const char *name){
 					throw __LINE__;
 				}
 				SetActiveKeyInput(inputHandle);
+				break;
+			case CTRL_CODE_F3:	/* 次を検索 */
+				dInfo.findNext();
 				break;
 			case CTRL_CODE_UP:	/* 前の曲へ */
 				dInfo.prev();
