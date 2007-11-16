@@ -499,7 +499,7 @@ struct LyricsBlock{
 	//int r, g, b;	/* 打ち始めのエフェクトの色（scoringTimeが有効の時、有効） */
 	double clearedTime;	/* Blockが打ち切られた時刻、負ならまだ */
 		/* 区切りについては、区切りが意味を持たなくなった時刻 */
-	double x, y, vx, vy;
+	double x, y, vx, vy, vz;
 		/* （clearedTimeが非負の時）打ち切られた時の跳ねかた（向きはランダム）を保持 */
 public:
 	int lyricsPos();
@@ -1977,8 +1977,11 @@ void CTyping::draw(){
 					(*i).y = posY;
 					double arg = (GetRand(32) - 16) / 20.0;
 					/* -0.8以上0.8以下0.05刻みでランダム */
-					(*i).vx = 100.0 * sin(arg);
+					double arg2 = GetRand(354) / 113.0;
+					/* 0～πぐらいまでのランダム（355/113≒π） */
+					(*i).vx = 100.0 * sin(arg) * sin(arg2);
 					(*i).vy = 100.0 * cos(arg);
+					(*i).vz = 0.7 * sin(arg) * cos(arg2);
 				}
 				// continue;
 			}
@@ -2015,6 +2018,7 @@ void CTyping::draw(){
 				}
 			}
 			{
+				int rCircle = R_CIRCLE;
 				if((*i).clearedTime >= 0.0){
 					double fTime = (time - (*i).clearedTime)/0.25;
 					if(fTime >= 1.0){	/* 打ち切ってから十分時間がたった */
@@ -2028,9 +2032,10 @@ void CTyping::draw(){
 					posX = (int)((*i).vx * fTime) + (*i).x;
 					posY = (int)(((125.0 * fTime) - (*i).vy) * fTime) + (*i).y;
 					/* 初速度(vx,vy)、加速度下に2*125.0で位置計算 */
+					rCircle = R_CIRCLE / (1.0 + (*i).vz * fTime);
 				}
-				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, Color, TRUE);	/* 流れる円 */
-				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
+				DrawCircle(posX, Y_CIRCLE + posY, rCircle - 1, Color, TRUE);	/* 流れる円 */
+				DrawCircle(posX, Y_CIRCLE + posY, rCircle, GetColor(0, 0, 0), FALSE);	/* 流れる円の輪郭 */
 #if 0
 #define R_CIRCLE2 (R_CIRCLE - 4)
 				DrawCircle(posX, Y_CIRCLE + posY, R_CIRCLE - 1, GetColor(255, 255, 255), TRUE);	/* 流れる円 */
