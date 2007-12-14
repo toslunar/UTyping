@@ -82,10 +82,15 @@ using namespace std;
 #define Y_STAT_GAUGE 10
 #define H_STAT_GAUGE 40
 
+#define GAUGE_COUNT 96
 #define X_GAUGE 90
-#define W_GAUGE 500
-#define Y_GAUGE 440
+//#define W_GAUGE 500
+#define W_GAUGE_SEGMENT 5
+#define W_GAUGE (W_GAUGE_SEGMENT * GAUGE_COUNT)
+#define Y_GAUGE 445
 #define H_GAUGE 10
+#define W_GAUGE_PADDING 4
+#define H_GAUGE_PADDING 2
 
 #define X_INFO 160
 #define Y_INFO 10
@@ -408,6 +413,135 @@ void CEffect1::draw(double time){
 
 /* ============================================================ */
 
+/* 良可判定のゲージ */
+class CStatGauge{
+public:
+	void init();
+	void draw();
+	void inc(int ID_accuracy);
+private:
+	void drawBar(double val, int y, int h, int color) const;
+	void drawLight(double Light, int y, int h, int color) const;
+private:
+	int m_val[4];	/* ゲージの現在描かれる長さ */
+	double m_drawX[4];
+	double m_drawV[4];	/* ゲージの現在描かれる長さの動く速度 */
+	double m_rate;	/* ↑の長さ1に相当する画面上の長さ */
+	double m_light[4];	/* ゲージのそれぞれを照らす光の強さ */
+	
+	int m_color[4][2];
+};
+
+void CStatGauge::init(){
+	for(int i=0; i<4; i++){	/* 最初の値 */
+		m_val[i] = 0;
+		m_drawX[i] = 0.0;
+		m_drawV[i] = 0.0;
+		m_light[i] = 0.0;
+	}
+	m_rate = 20.0;	/* 最初の、長さ1あたりの表示する長さ */
+	
+	m_color[ID_EXCELLENT][0] = COLOR_EXCELLENT;
+	m_color[ID_EXCELLENT][1] = COLOR_EXCELLENT2;
+	m_color[ID_GOOD][0] = COLOR_GOOD;
+	m_color[ID_GOOD][1] = COLOR_GOOD2;
+	m_color[ID_FAIR][0] = COLOR_FAIR;
+	m_color[ID_FAIR][1] = COLOR_FAIR2;
+	m_color[ID_POOR][0] = COLOR_POOR;
+	m_color[ID_POOR][1] = COLOR_POOR2;
+}
+
+void CStatGauge::draw(){	/* ゲージを表示 */
+	int y = Y_STAT_GAUGE;
+	int h = H_STAT_GAUGE / 4;
+	
+	for(int i=0; i<4; i++){	/* ゲージの指すべき値に近づける */
+		//m_statGauge[i] += (x[i] - m_statGauge[i]) * 0.2;
+		m_drawV[i] += 0.12 * (m_val[i] - m_drawX[i]);
+		m_drawX[i] += m_drawV[i];
+		/* 摩擦 */
+		m_drawV[i] *= 0.7;
+	}
+		
+	{
+		double rate = 20.0;
+		while(1){
+			bool flag = true;
+			for(int i=0; i<4; i++){
+				if(m_val[i] * rate > W_STAT_GAUGE){
+					flag = false;
+				}
+			}
+			if(flag){
+				break;
+			}
+			/* 超えるたびに0.75倍ずつしていき、超えなくなるまでやる */
+			rate *= 0.75;
+		}
+		m_rate += (rate - m_rate) * 0.2;
+	}
+	
+	
+	{
+		double x[4];	/* m_drawX[]から縮小処理してx[]に入れる */
+		for(int i=0; i<4; i++){
+			x[i] = m_drawX[i] * m_rate;
+		}
+		/* もともと濃い灰色で描画しないのは tan などへの配慮 */
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 128);	/* 不透明さ1/2 */
+		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y, X_STAT_GAUGE, y + 4 * h, GetColor(64, 64, 64), TRUE);
+		/* それぞれの長さを表示 */
+		for(int i=0; i<4; i++){
+			drawBar(x[i], y+i*h, h, m_color[i][0]);
+		}
+	}
+	
+	/* 最近変更されたものを照らす */
+	for(int i=0; i<4; i++){
+		drawLight(m_light[i], y+i*h, h, m_color[i][1]);
+		/*
+		double Light = m_light[i];
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+		Light *= 4.0;
+		if(Light > 1.0){
+			Light = 1.0;
+		}
+		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y+i*h + dh, X_STAT_GAUGE, y+(i+1)*h - dh, m_color[i][1], TRUE);
+		*/
+		m_light[i] *= 0.85;
+	}
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+}
+
+void CStatGauge::inc(int ID_accuracy){
+	m_val[ID_accuracy]++;
+	m_light[ID_accuracy] = 1.0;
+}
+
+void CStatGauge::drawBar(double val, int y, int h, int color) const{
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 224);	/* 不透明さ7/8 */
+	//DrawBox((int)(X_STAT_GAUGE - val + 0.5), y, X_STAT_GAUGE, y+h, color, TRUE);
+	int i_val = floor(val);
+	double f_val = val - i_val;
+	DrawBox(X_STAT_GAUGE - i_val, y, X_STAT_GAUGE, y+h, color, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(224 * f_val));	/* 不透明さ(7/8)*小数部分 */
+	DrawBox(X_STAT_GAUGE - i_val - 1, y, X_STAT_GAUGE - i_val, y+h, color, TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+}
+
+void CStatGauge::drawLight(double Light, int y, int h, int color) const{
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
+	Light *= 4.0;
+	if(Light > 1.0){
+		Light = 1.0;
+	}
+	int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
+	DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y + dh, X_STAT_GAUGE, y + h - dh, color, TRUE);
+}
+
+/* ============================================================ */
+
 struct ConvertData{
 public:
 	ConvertData(const char *buf1, const char *buf3);
@@ -656,10 +790,8 @@ private:
 	
 	void initGauge();
 	void updateGauge();
+	int drawGaugeColor(int pos, int cnt);
 	void drawGauge(bool isResult);
-	
-	void initStatGauge();
-	void drawStatGauge();
 	
 	int getBlockStr(vector<LyricsBlock>::iterator itr, char *buf) const;
 	
@@ -745,10 +877,7 @@ private:
 	double m_gaugeX, m_gaugeV;	/* 表示されるゲージの値、速度 */
 	int m_gaugeL;	/* 表示するゲージのためのm_gaugeの前回の値 */
 	
-	/* 良可判定のゲージについて、 */
-	double m_statGauge[4];	/* ゲージの現在描かれる長さ */
-	double m_statGaugeRate;	/* ↑の長さ1に相当する画面上の長さ */
-	double m_statGaugeLight[4];	/* ゲージのそれぞれを照らす光の強さ */
+	CStatGauge m_statGauge;
 	
 	char m_text[256];	/* 判定（およびコンボ数）を表示 */
 	int m_textColor;
@@ -1073,7 +1202,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	
 	initGauge();	/* ゲージ初期化 */
 	
-	initStatGauge();	/* 統計ゲージ初期化 */
+	m_statGauge.init();	/* 統計ゲージ初期化 */
 	
 	loadRanking(rankingFileName);
 	/* ランキング読み込み */
@@ -1752,7 +1881,7 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 /* lyricsPositionはそのうち使うかもしれない…… */
 void CTyping::scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int ID_accuracy){
 	if(ID_accuracy <= ID_POOR){
-		m_statGaugeLight[ID_accuracy] = 1.0;
+		m_statGauge.inc(ID_accuracy);
 	}
 	
 	switch(ID_accuracy){
@@ -1767,10 +1896,12 @@ void CTyping::scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int
 		m_gaugeNewCount++;
 		break;
 	case ID_FAIR:
+		m_gauge += 1;
+		if(m_gauge > m_gaugeMax)m_gauge = m_gaugeMax;
 		m_gaugeNewCount++;
 		break;
 	case ID_POOR:
-		m_gauge -= 5;
+		m_gauge -= 3;
 		if(m_gauge < 0)m_gauge = 0;
 		m_gaugeNewCount++;
 		break;
@@ -1782,10 +1913,10 @@ void CTyping::scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int
 /*
 Excellent	+7
 Good		+4
-Fair		+0
-Poor		-5
+Fair		+1
+Poor		-3
 Passed		-5
-非打ち切り	-3
+非打ち切り	-2
 
 2nからスタート
 値の範囲は 0 - 8n
@@ -1812,8 +1943,8 @@ void CTyping::updateGauge(){
 		if(count > m_gaugeLastCount){
 			/* count が進んだら打ち逃しと通過を判定 */
 			int lost = count - m_countClear;	/* 打ちきれなかった個数 */
-			m_gauge -= (lost - m_gaugeLastLost) * 3;
-			/* 打ちきれないと -3（Passの減点と重複する） */
+			m_gauge -= (lost - m_gaugeLastLost) * 2;
+			/* 打ちきれないと -2（Passの減点と重複する） */
 			m_gaugeLastLost = lost;
 			
 			{
@@ -1825,7 +1956,7 @@ void CTyping::updateGauge(){
 					m_gaugeNewCount = -t;
 				}else{
 					m_gauge -= t * 5;
-					/* Passは-5（Poorと同じ） */
+					/* Passは-5 */
 					m_gaugeNewCount = 0;
 				}
 			}
@@ -1837,163 +1968,42 @@ void CTyping::updateGauge(){
 	}
 }
 
-#define GAUGE_NORM 0.75
+int CTyping::drawGaugeColor(int pos, int cnt){
+	if(pos < 12){
+		if(pos < cnt) return GetColor(255, 32, 0);
+		else return GetColor(64, 8, 0);
+	}else if(pos < 36){
+		if(pos < cnt) return GetColor(224, 255, 0);
+		else return GetColor(56, 64, 0);
+	}else if(pos < 72){
+		if(pos < cnt) return GetColor(0, 64, 255);
+		else return GetColor(0, 16, 64);
+	}else{
+		if(pos < cnt) return GetColor(255, 255, 255);
+		else return GetColor(64, 64, 64);
+	}
+}
 
 void CTyping::drawGauge(bool isResult){
 	int y0, y1;
-	double val;
 	
 	if(isResult){
-		val = m_gauge / (double)m_gaugeMax;
 		y0 = 355;
 	}else{
-		{
-			/* 新しい変化に応じて速度を調整 */
-			m_gaugeV += 0.0010 * (m_gauge - m_gaugeL);
-			m_gaugeL = m_gauge;
-			
-			/* ばねを模倣 */
-			double dx = (m_gauge / (double)m_gaugeMax) - m_gaugeX;
-			m_gaugeV += 0.15 * dx;
-			m_gaugeX += m_gaugeV;
-			/* 摩擦 */
-			m_gaugeV *= 0.7;
-			
-			/* 端に当たったら跳ね返る */
-			if(m_gaugeX < 0.0){
-				m_gaugeX = 0.0;
-				m_gaugeV *= -0.7;
-			}else if(m_gaugeX > 1.0){
-				m_gaugeX = 1.0;
-				m_gaugeV *= -0.7;
-			}
-		}
-		
-		val = m_gaugeX;
 		y0 = Y_GAUGE;
 	}
 	y1 = y0 + H_GAUGE;
 	
-	if(val < GAUGE_NORM){
-		DrawBox(X_GAUGE, y0, (int)(X_GAUGE + W_GAUGE * val + 0.5), y1,
-			GetColor(255, 255, 0), TRUE);
-		DrawBox((int)(X_GAUGE + W_GAUGE * val + 0.5), y0, (int)(X_GAUGE + W_GAUGE * GAUGE_NORM + 0.5), y1,
-			GetColor(32, 32, 32), TRUE);
-		DrawBox((int)(X_GAUGE + W_GAUGE * GAUGE_NORM + 0.5), y0, X_GAUGE + W_GAUGE, y1,
-			GetColor(64, 64, 64), TRUE);
-	}else{
-		DrawBox(X_GAUGE, y0, (int)(X_GAUGE + W_GAUGE * GAUGE_NORM + 0.5), y1,
-			GetColor(255, 255, 0), TRUE);
-		DrawBox((int)(X_GAUGE + W_GAUGE * GAUGE_NORM + 0.5), y0, (int)(X_GAUGE + W_GAUGE * val + 0.5), y1,
-			GetColor(255, 0 , 0), TRUE);
-		DrawBox((int)(X_GAUGE + W_GAUGE * val + 0.5), y0, X_GAUGE + W_GAUGE, y1,
-			GetColor(64, 64, 64), TRUE);
-	}
-}
-
-/* ------------------------------------------------------------ */
-
-void CTyping::initStatGauge(){
-	for(int i=0; i<4; i++){	/* 最初の値 */
-		m_statGauge[i] = 0.0;
-		m_statGaugeLight[i] = 0.0;
-	}
-	m_statGaugeRate = 20.0;	/* 最初の、長さ1あたりの表示する長さ */
-}
-
-void CTyping::drawStatGauge(){	/* ゲージを表示 */
-	int y = Y_STAT_GAUGE;
-	int h = H_STAT_GAUGE / 4;
-	{
-		double x[4];
-		x[0] = m_countExcellent;
-		x[1] = m_countGood;
-		x[2] = m_countFair;
-		x[3] = m_countPoor;
-		for(int i=0; i<4; i++){	/* ゲージの指すべき値に近づける */
-			m_statGauge[i] += (x[i] - m_statGauge[i]) * 0.2;
-		}
-	}
+	int cnt = (GAUGE_COUNT * m_gauge + m_gaugeMax-1)/ m_gaugeMax;
+		/* m_gauge / m_gaugeMax を 0 - GAUGE_COUNTにする（切り上げ） */
 	
-	double x[4];	/* m_statGauge[]から枠外を処理してx[]に入れる */
-	double rate = 20.0;
-	while(1){
-		bool flag = true;
-		for(int i=0; i<4; i++){
-			if(m_statGauge[i] * rate > W_STAT_GAUGE){
-				flag = false;
-				//rate = W_STAT_GAUGE / x[i];
-			}
-		}
-		if(flag){
-			break;
-		}
-		/* 超えるたびに0.75倍ずつしていき、超えなくなるまでやる */
-		rate *= 0.75;
-		/*
-		for(int i=0; i<4; i++){
-			x[i] *= 0.75;
-		}
-		*/
-	}
-	m_statGaugeRate += (rate - m_statGaugeRate) * 0.2;
-	for(int i=0; i<4; i++){
-		x[i] = m_statGauge[i] * m_statGaugeRate;
-	}
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 128);	/* 不透明さ1/2 */
-	DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y, X_STAT_GAUGE, y + 4 * h, GetColor(64, 64, 64), TRUE);
-	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 224);	/* 不透明さ7/8 */
-	//SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-	/* それぞれの長さを表示 */
-	DrawBox((int)(X_STAT_GAUGE - x[0]), y        , X_STAT_GAUGE, y +     h, COLOR_EXCELLENT, TRUE);
-	DrawBox((int)(X_STAT_GAUGE - x[1]), y +     h, X_STAT_GAUGE, y + 2 * h, COLOR_GOOD, TRUE);
-	DrawBox((int)(X_STAT_GAUGE - x[2]), y + 2 * h, X_STAT_GAUGE, y + 3 * h, COLOR_FAIR, TRUE);
-	DrawBox((int)(X_STAT_GAUGE - x[3]), y + 3 * h, X_STAT_GAUGE, y + 4 * h, COLOR_POOR, TRUE);
+	DrawBox(X_GAUGE - W_GAUGE_PADDING, y0 - H_GAUGE_PADDING,
+		X_GAUGE + W_GAUGE + W_GAUGE_PADDING, y1 + H_GAUGE_PADDING,
+		GetColor(8, 8, 8), TRUE);
 	
-	/* 最近変更されたものを照らす */
-	{
-		double Light = m_statGaugeLight[ID_EXCELLENT];
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
-		Light *= 4.0;
-		if(Light > 1.0){
-			Light = 1.0;
-		}
-		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
-		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y         + dh, X_STAT_GAUGE, y +     h - dh, COLOR_EXCELLENT2, TRUE);
-	}
-	{
-		double Light = m_statGaugeLight[ID_GOOD];
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
-		Light *= 4.0;
-		if(Light > 1.0){
-			Light = 1.0;
-		}
-		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
-		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y +     h + dh, X_STAT_GAUGE, y + 2 * h - dh, COLOR_GOOD2, TRUE);
-	}
-	{
-		double Light = m_statGaugeLight[ID_FAIR];
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
-		Light *= 4.0;
-		if(Light > 1.0){
-			Light = 1.0;
-		}
-		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
-		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y + 2 * h + dh, X_STAT_GAUGE, y + 3 * h - dh, COLOR_FAIR2, TRUE);
-	}
-	{
-		double Light = m_statGaugeLight[ID_POOR];
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(192 * Light));
-		Light *= 4.0;
-		if(Light > 1.0){
-			Light = 1.0;
-		}
-		int dh = (int)(h * 0.5 * (1.0 - Light)*(1.0 - Light));
-		DrawBox(X_STAT_GAUGE - W_STAT_GAUGE, y + 3 * h + dh, X_STAT_GAUGE, y + 4 * h - dh, COLOR_POOR2, TRUE);
-	}
-	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-	for(int i=0; i<4; i++){
-		m_statGaugeLight[i] *= 0.85;
+	for(int i=0; i<GAUGE_COUNT; i++){
+		DrawBox(X_GAUGE + W_GAUGE_SEGMENT * i +1, y0, X_GAUGE + W_GAUGE_SEGMENT * (i+1) -1, y1, 
+			drawGaugeColor(i, cnt), TRUE);
 	}
 }
 
@@ -2335,7 +2345,7 @@ void CTyping::draw(){
 	
 	drawGauge(false);
 	
-	drawStatGauge();
+	m_statGauge.draw();
 	
 	m_scoreDraw = m_score/10 - (int)(0.7 * (m_score/10 - m_scoreDraw));
 	{
