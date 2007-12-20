@@ -8,7 +8,8 @@ using namespace std;
 
 struct Info{
 	double speed;	/* 1小節にかかる時間（正確には、四分音符4つにかかる時間） */
-	int base;	/* 今何分音符単位で入力しているか */
+	vector<int> base;	/* 今何分音符単位で入力しているか */
+	int base_pos;
 	double time;
 	int beat_nu, beat_de;	/* 一小節の分子/分母 */
 	int beat_int;	/* 現在の拍数、端数 */
@@ -47,15 +48,22 @@ void setSpeed(Info &info, char *str){
 }
 
 void setBase(Info &info, char *str){
-	int k;
-	int n = sscanf(str, "%d", &k);
-	if(n < 1){
+	info.base.clear();
+	for(char *ptr = strtok(str, ", \t\n"); ptr != NULL;
+			ptr = strtok(NULL, ", \t\n")){
+		int k;
+		int n = sscanf(ptr, "%d", &k);
+		if(n < 1){
+			throw __LINE__;
+		}
+		if(k <= 0){	/* k分音符のkは正整数 */
+			throw __LINE__;
+		}
+		info.base.push_back(k);
+	}
+	if(info.base.empty()){
 		throw __LINE__;
 	}
-	if(k <= 0){	/* k分音符のkは正整数 */
-		throw __LINE__;
-	}
-	info.base = k;
 	return;
 }
 
@@ -113,10 +121,11 @@ void timeAdd(Info &info, vector<pair<double, int> > &timeArray){
 	if(info.speed <= 0.0){
 		throw __LINE__;
 	}
-	if(info.base <= 0){
+	if(info.base.empty()){
 		throw __LINE__;
 	}
-	double length = 1.0 / info.base;
+	double length = 1.0 / info.base[info.base_pos++];
+	info.base_pos %= info.base.size();
 	double dTime, dBeat;
 	dTime = length * info.speed;
 	if(info.beat_de > 0){	/* 拍子が定義されている */
@@ -190,7 +199,8 @@ L2:
 	
 	Info info;
 	info.speed = -1.0;	/* 1小節にかかる時間 */
-	info.base = 0;	/* 今何分音符単位で入力しているか */
+	info.base.clear();	/* 今何分音符単位で入力しているか */
+	info.base_pos = 0;
 	info.time = 0.0;
 	
 	info.beat_nu = 0;
@@ -200,8 +210,8 @@ L2:
 	info.beat_frac = 0.0;
 	
 	vector<pair<double, int> > timeArray;
-		/* intは、0:区切り, 1:歌詞の句の最初以外, 2:歌詞の句の最初 */
-		/* -1:小節線, -2:「拍線」 */
+		/* intは、0:区切り, 1:打つ歌詞, 2:表示する歌詞 */
+		/* 3:1と2を兼ねる, -1:小節線, -2:「拍線」 */
 	vector<string> lyricsArray;	/* 打つ歌詞（読み方） */
 	vector<string> lyricsKanjiArray;	/* 流れる文字と別に表示する歌詞 */
 	
@@ -266,7 +276,13 @@ L2:
 				case ']':	/* コマンドを開いていないのに閉じるが来た */
 					throw __LINE__;
 				case '*':	/* 歌詞の1音節目 */
-					/* 歌詞の区切りを入れて、歌詞を入れて、時間を経過させる */
+					/* 歌詞の区切りを入れて、表示歌詞と歌詞を入れて、時間を経過させる */
+					timeArray.push_back(make_pair(info.time, 0));
+					timeArray.push_back(make_pair(info.time, 3));
+					timeAdd(info, timeArray);
+					break;
+				case '%':	/* 表示する歌詞始まりだが、1音節目でない */
+					/* 歌詞の区切りを入れて、表示歌詞を入れて、時間を経過させる */
 					timeArray.push_back(make_pair(info.time, 0));
 					timeArray.push_back(make_pair(info.time, 2));
 					timeAdd(info, timeArray);
@@ -297,7 +313,8 @@ L1:
 	
 	vector<string>::iterator itrLyrics = lyricsArray.begin();
 	vector<string>::iterator itrKanjiLyrics = lyricsKanjiArray.begin();
-	bool flag = false;	/* 直前が区切りだったかのフラグ */
+	bool flag = true;	/* 直前が区切りだったかのフラグ */
+	/* 最初に区切りなんていらないので、trueでOK */
 	for(vector<pair<double, int> >::iterator itr = timeArray.begin();
 			itr != timeArray.end(); itr++){
 		if((*itr).second <= -1){	/* 小節線などが入る時間 */
@@ -308,19 +325,20 @@ L1:
 			}
 			printf("%lf\n", (*itr).first);
 		}else if((*itr).second >= 1){	/* 歌詞の入る時間 */
-			if((*itr).second == 2){	/* 表示する歌詞の入る時間 */
+			if((*itr).second & 2){	/* 表示する歌詞の入る時間 */
 				if(itrKanjiLyrics == lyricsKanjiArray.end()){
 					throw __LINE__;
 				}
 				printf("*%lf %s\n", (*itr).first, (*itrKanjiLyrics).c_str());
 				itrKanjiLyrics++;
 			}
-			if(itrLyrics == lyricsArray.end()){	/* 打つ歌詞が入るべきところに歌詞がない */
-				throw __LINE__;
+			if((*itr).second & 1){	/* 打つ歌詞の入る時間 */
+				if(itrLyrics == lyricsArray.end()){	/* 打つ歌詞が入るべきところに歌詞がない */
+					throw __LINE__;
+				}
+				printf("+%lf %s\n", (*itr).first, (*itrLyrics).c_str());
+				itrLyrics++;
 			}
-			printf("+%lf %s\n", (*itr).first, (*itrLyrics).c_str());
-			itrLyrics++;
-			
 			flag = false;
 		}else{	/* 歌詞の区切りの入る時間 */
 			if(!flag){	/* 区切りが連続することを防止 */
