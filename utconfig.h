@@ -26,6 +26,8 @@ public:
 	bool f_rankingCheckDate;
 	bool f_rankingCheckChallenge;
 	
+	bool f_failByGauge;
+	
 	bool f_fullScreen;
 	bool f_showFPS;
 	bool f_waitVSync;
@@ -53,6 +55,8 @@ void UTypingConfig::init(){
 	
 	f_rankingCheckDate = false;
 	f_rankingCheckChallenge = true;
+	
+	f_failByGauge = false;
 	
 	f_fullScreen = false;
 	f_showFPS = false;
@@ -144,6 +148,14 @@ void UTypingConfig::read(){
 				f_rankingCheckChallenge = false;
 			}else{
 				throw "[config] RankingCheckChallenge は true または false で指定しなければならない。（デフォルト: true ）";
+			}
+		}else if(!strcmp(ptr1, "FailByGauge")){
+			if(!strcmp(ptr2, "true")){
+				f_failByGauge = true;
+			}else if(!strcmp(ptr2, "false")){
+				f_failByGauge = false;
+			}else{
+				throw "[config] FailByGauge は true または false で指定しなければならない。（デフォルト: false ）";
 			}
 		}else if(!strcmp(ptr1, "FullScreen")){
 			if(!strcmp(ptr2, "true")){
