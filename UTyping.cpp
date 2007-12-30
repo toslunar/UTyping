@@ -55,7 +55,7 @@ using namespace std;
 #define NAME_LEN 16
 #define TYPE_BUFFER_LEN NAME_LEN
 /* ƒ^ƒCƒsƒ“ƒO‚É—p‚¢‚éƒoƒbƒtƒ@‚Ì’·‚³ */
-/* –¼‘O‚ÌÅ‘å’·‚É“™‚µ‚¢ */
+/* –¼‘O‚ÌÅ‘å’·‚É“™‚µ‚¢A•ÏŠ·‚Ì‚½‚ß‚ÉÅ’á4•¶š‚Í•K—v */
 
 #define H_COMMENT 240
 /* yƒRƒƒ“ƒg‚Ì•i‚‚³j‚ÍRANKING_LEN ˆÊ•ª‚ğ•`‰æ‚·‚é‚Æ‚«‚Æ“¯‚¶z‚¾‚Á‚½ */
@@ -414,37 +414,48 @@ void CEffect1::draw(double time){
 /* Œã‚ë‚É•¶š‚ª1•¶š‚¸‚Â’Ç‰Á‚³‚êA‘O‚ªÁ‚¦‚Ä‚¢‚­•¶š—ñ‚ğ‘ÎÛ‚É‚µ‚½Effect */
 /* ˆê‰A•¶š—ñ‚ª’·‚³‚ğ‘‚â‚³‚¸•Ï‰»‚·‚é‰Â”\«‚É‚à‘Î‰ */
 
-#define CEFFECTSTR_SEC 0.4
+#define CEFFECTSTR_SEC 0.3
 /* íœŒãÁ‚¦‚é‚Ü‚Å‚ÌŠÔ */
 
-#define CEFFECTSTR_W 3.0
-/* V‚µ‚¢•¶š‚ª‰E‚É‚±‚ê‚¾‚¯‚¸‚ê‚Äo‚é */
-#define CEFFECTSTR_SEC2 0.05
-/* –{—ˆ‚ÌˆÊ’u‚É–ß‚é‚Ü‚Å‚ÌŠÔ */
+#define CEFFECTSTR_SEC2 0.08
+/* ‘Å‚Á‚½ƒGƒtƒFƒNƒg‚ª‚©‚©‚éŠÔ */
 
-#define CEFFECTSTR_H 30
+#define CEFFECTSTR_H 10
 /* ‘Å‚¿Ø‚Á‚½Œã‚É—‚¿‚é‹——£ */
 
-#define CEFFECTSTR_V 10.0
-/* 1•b‚Å¶Œü‚«‘¬“x‚ª10.0•¶š•ªA‚³‚ç‚É‰º‚Ì‰Á‘¬“x‚ğl—¶ */
-#define CEFFECTSTR_A 100.0
-/* 1•b‚Å¶Œü‚«‰Á‘¬“x‚ª50.0•¶š•ª */
+//#define CEFFECTSTR_V 15.0
+/* 1•b‚Å¶Œü‚«‘¬“x‚ª15.0•¶š•ª */
+/* ‚±‚ê‚Íinit‚ÌposV‚Åİ’è‚Å‚«‚é‚æ‚¤‚É‚È‚Á‚½ */
+
+#define CEFFECTSTR_EX 2.4
+/* ƒGƒtƒFƒNƒg‚Ì•¶š‚Ì‘å‚«‚³‚ÌÅ‰ */
 
 class CEffectStr{
 public:
-	void init(int fontHandle);
+	void init(int fontHandle, bool flagTypeEffect, double posV, double alphaCleared);
+		/* g—p‚·‚éƒtƒHƒ“ƒg‚ÆAƒ^ƒCƒsƒ“ƒO‚µ‚½‚æ‚¤‚ÈƒGƒtƒFƒNƒg‚ğ‚©‚¯‚é‚©‚ğÅ‰‚Éİ’è */
+		/* •\¦‚Å‚ ‚¢‚½¶‚ğ‹l‚ß‚é‘¬“xi•¶š/•bjAíœ’¼Œã‚Ì•s“§–¾“x‚àİ’è */
 	void push(char ch, double time);	/* ––”ö‚Éˆê•¶š‚Ìƒf[ƒ^‚ğ’Ç‰Á */
+	void push(char *str, double time);	/* ––”ö‚É”•¶š‚Ìƒf[ƒ^‚ğ’Ç‰Á */
 	void update(const char *str, int len, double time);
 		/* Œ»İ‚Ìƒf[ƒ^‚ğİ’èBå‚É‘O•û‚ªÁ‚¦‚½‚±‚Æ‚ğ‹³‚¦‚é */
 		/* ‚±‚±‚ÅAƒf[ƒ^‚ÌŒã•û‚Æstr‚ªˆê’v‚µ‚È‚©‚Á‚½‚ç’¼‚· */
+	void clear();
+		/* Œ»İ‚Ìƒf[ƒ^‚ğ’Pƒ‚ÉiÁ‹ƒGƒtƒFƒNƒg‚È‚µ‚ÅjÁ‚·BŠù‘¶‚ÌƒGƒtƒFƒNƒg‚Íc‚·B */
+	
 	void draw(int X, int Y, double time);
 		/* Œ»İ‚Ì•¶š—ñ‚ğQÆ‚µ‚Â‚Â•\¦ */
 private:
+	void drawChar(double X, double Y, const char *buf, double t, double alpha) const;
+		/* 2ƒoƒCƒg•¶š‚ÌŠÖŒWã•¶š—ñ‚Å“n‚· */
 	void updatePos(double time);
 private:
 	int m_fontHandle;
-	
+	bool m_flagTypeEffect;
 	int m_fontWidth;
+	
+	double m_posV;
+	double m_alphaCleared;
 	
 	struct Data{
 		char ch;
@@ -457,21 +468,24 @@ private:
 	deque<Data> m_deqCleared;	/* íœ‚³‚ê‚½•¶š‚½‚¿ */
 	
 	double m_pos;	/* •\¦‚³‚ê‚éˆÊ’u‚ª‚Ç‚ê‚¾‚¯¶‚É‚¸‚ê‚é‚© */
-	double m_posV;	/* ª‚Ì•Ï‰»‚·‚é‘¬‚³ */
 	double m_lastTime;	/* ÅŒã‚ÉXV‚µ‚½ŠÔ */
 };
 
-void CEffectStr::init(int fontHandle){
+void CEffectStr::init(int fontHandle, bool flagTypeEffect, double posV, double alphaCleared){
 	m_fontHandle = fontHandle;
 	{
 		char str[2] = " ";
 		m_fontWidth = GetDrawStringWidthToHandle(str, 1, m_fontHandle);
 	}
+	
+	m_flagTypeEffect = flagTypeEffect;
+	m_posV = posV * m_fontWidth;
+	m_alphaCleared = alphaCleared;
+	
 	m_deq.clear();
 	m_deqCleared.clear();
 	
 	m_pos = 0.0;
-	m_posV = CEFFECTSTR_V;
 	//m_lastTime = 0.0;
 }
 
@@ -490,6 +504,14 @@ void CEffectStr::push(char ch, double time){
 	m_deq.push_back(data);
 }
 
+void CEffectStr::push(char *str, double time){
+	while(*str){
+		push(*str, time);
+		str++;
+	}
+}
+
+
 void CEffectStr::update(const char *str, int len, double time){
 	updatePos(time);
 	
@@ -501,12 +523,17 @@ void CEffectStr::update(const char *str, int len, double time){
 	/* Á‚¦‚½ƒf[ƒ^‚ğˆÚ“® */
 	for(int i=0; i<diff; i++){
 		m_deq[i].timeCleared = time;
-		m_deq[i].x = m_pos * m_fontWidth;
-		m_pos += 1.0;
+		m_deq[i].x = m_pos;
+		m_pos += m_fontWidth;
 		m_deqCleared.push_back(m_deq[i]);
+//printfDx("%10c, %10d, %10f, %10f\n", m_deq[i].ch, (int)m_deq[i].x, m_deq[i].time, m_deq[i].timeCleared);
 	}
 	for(int i=0; i<diff; i++){
 		m_deq.pop_front();
+	}
+	
+	if(len == 0){	/* ƒf[ƒ^‚ª‹ó‚É‚È‚Á‚½‚çA¶’[‚ğ0‚É‚·‚é */
+		m_pos = 0.0;
 	}
 	
 	for(int i=0; i<len; i++){
@@ -515,45 +542,81 @@ void CEffectStr::update(const char *str, int len, double time){
 	
 }
 
+void CEffectStr::clear(){
+	m_deq.clear();
+}
+
 void CEffectStr::draw(int X, int Y, double time){
 	updatePos(time);
 	
 	while(!m_deqCleared.empty() &&
-			time - m_deqCleared.front().time >= CEFFECTSTR_SEC){	/* Á‚¦‚Ä‚©‚ç\•ª’·‚¢ŠÔ‚ª‚½‚Á‚½ */
+			time - m_deqCleared.front().timeCleared >= CEFFECTSTR_SEC){	/* Á‚¦‚Ä‚©‚ç\•ª’·‚¢ŠÔ‚ª‚½‚Á‚½ */
 		m_deqCleared.pop_front();
 	}
-	char buf[2];
-	buf[1] = '\0';
-	for(deque<Data>::iterator itr = m_deqCleared.begin(); itr != m_deqCleared.end(); itr++){
-		buf[0] = itr->ch;
-		double xTime = (time - itr->timeCleared)/CEFFECTSTR_SEC;
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 16 * (1.0-xTime));
-		int color = GetColor(255, 255, 255);
-		double dx = 0.0;
-		double xTime2 = 1.0 - (time - itr->time)/CEFFECTSTR_SEC2;
-		if(xTime2 > 0.0){
-			color = GetColor(255, 255, 192+63*(1-xTime2));
-			dx = CEFFECTSTR_W * xTime2;
-		}
-		DrawStringToHandle(X + itr->x + dx, Y + CEFFECTSTR_H * (xTime * xTime),
-			buf, color, m_fontHandle);
-	}
-	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 	
-	int x = m_pos * m_fontWidth;
-	for(deque<Data>::iterator itr = m_deq.begin(); itr != m_deq.end(); itr++){
+	char buf[3];
+	for(deque<Data>::iterator itr = m_deqCleared.begin(); itr != m_deqCleared.end(); itr++){
+		double x = itr->x;
 		buf[0] = itr->ch;
-		int color = GetColor(255, 255, 255);
-		double dx = 0.0;
-		double xTime2 = 1.0 - (time - itr->time)/CEFFECTSTR_SEC2;
-		if(xTime2 > 0.0){
-			color = GetColor(255, 255, 192+63*(1-xTime2));
-			dx = CEFFECTSTR_W * xTime2;
+		if(isJapanese1st(itr->ch)){
+			itr++;
+			if(itr == m_deqCleared.end()){
+				break;
+			}
+			buf[1] = itr->ch;
+			buf[2] = '\0';
+		}else{
+			buf[1] = '\0';
 		}
-		DrawStringToHandle(X + x + dx, Y, buf, color, m_fontHandle);
-		x += m_fontWidth;
+		double xTime = (time - itr->timeCleared)/CEFFECTSTR_SEC;
+		double t = 1.0 - xTime;
+		if(t > 1.0) t = 1.0;
+		t *= t*t;
+		drawChar(X + x, Y + CEFFECTSTR_H * xTime * xTime,
+			buf, time - itr->time, m_alphaCleared * t);
 	}
-};
+	
+	double pos = m_pos;
+	for(deque<Data>::iterator itr = m_deq.begin(); itr != m_deq.end(); itr++){
+		double x = pos;
+		buf[0] = itr->ch;
+		if(isJapanese1st(itr->ch)){
+			itr++;
+			if(itr == m_deq.end()){
+				break;
+			}
+			buf[1] = itr->ch;
+			buf[2] = '\0';
+			pos += 2*m_fontWidth;
+		}else{
+			buf[1] = '\0';
+			pos += m_fontWidth;
+		}
+		drawChar(X + x, Y, buf, time - itr->time, 1.0);
+	}
+}
+
+void CEffectStr::drawChar(double X, double Y, const char *buf, double t, double alpha) const{
+	if(m_flagTypeEffect && t < CEFFECTSTR_SEC2){
+		t = 1.0 - t/CEFFECTSTR_SEC2;
+		if(t > 1.0) t = 1.0;
+		double ExRate = 1.0 + (CEFFECTSTR_EX - 1.0) * t * t;
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 64 * alpha / ExRate);
+		DrawExtendStringToHandle(
+			X - m_fontWidth * (ExRate - 1.0) / 2.0 , Y - m_fontWidth * (ExRate - 1.0),
+			ExRate, ExRate, buf, GetColor(255, 255, 255), m_fontHandle);
+		/* ƒtƒHƒ“ƒg‚Ìc:‰¡=1:2‚Æ‚¢‚¤‰¼’è‚ğg‚Á‚Ä‚¢‚é */
+		/* ‚³‚ç‚ÉA‘SŠp•¶š‚ª—ˆ‚È‚¢‚±‚Æ‚ª•K—v‚¾‚ªAƒ^ƒCƒsƒ“ƒO‚Å‚Íƒ[ƒ}š‚µ‚©“ü‚ç‚È‚¢‚Ì‚ÅOK */
+	}
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * alpha);
+	DrawStringToHandle(X, Y, buf, GetColor(255, 255, 255), m_fontHandle);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+/*
+if(alpha!=1.0){
+DrawStringToHandle(X, Y, buf, GetColor(255, 0, 0), m_fontHandle);
+}
+*/
+}
 
 void CEffectStr::updatePos(double time){
 	if(m_pos == 0.0){
@@ -561,13 +624,13 @@ void CEffectStr::updatePos(double time){
 		return;
 	}
 	double timeDiff = time - m_lastTime;
+	if(timeDiff < 0.0){
+		return;
+	}
 	m_lastTime = time;
-	double posVNew = m_posV + (CEFFECTSTR_A * timeDiff);
-	m_pos -= timeDiff * (m_posV + posVNew) / 2.0;
-	m_posV = posVNew;
+	m_pos -= timeDiff * m_posV;
 	if(m_pos < 0.0){
 		m_pos = 0.0;
-		m_posV = CEFFECTSTR_V;
 	}
 }
 
@@ -891,7 +954,7 @@ void LyricsKanji::draw(int x, int y, int fontHandle) const{
 
 int LyricsKanji::getDrawColor(bool flag) const{
 	if(flag)return GetColor(255, 255, 255);
-	else return GetColor(85, 85, 85);
+	else return GetColor(64, 64, 85);
 }
 
 /* ============================================================ */
@@ -928,6 +991,9 @@ private:
 	void keyboard(char ch, double timeCount);
 	void keyboard_1(char ch, double time);
 	void keyboardEffect(char ch, double time);
+	void updateLyricsBuffer(double time);
+	void clearLyricsBuffer(vector<LyricsBlock>::iterator lyricsPos);
+	
 	bool idle(double timeCount);
 private:
 	void loadRanking(const char *fileName);
@@ -939,6 +1005,7 @@ private:
 	void synchronizeTime(int soundHandle, double frequencyRate);
 	double getTime() const;
 	double getTime(double timeCount) const;
+	//void skipTime(double sec);
 	
 	void phase(int phaseNum);
 	
@@ -962,7 +1029,8 @@ private:
 	
 	void drawTypeBuffer(double time);
 	
-	int getBlockStr(vector<LyricsBlock>::iterator itr, char *buf) const;
+	int getBlockStr(vector<LyricsBlock>::iterator itr, char *buf, bool f_getUntyped) const;
+	int getLyricsBuffer(char *buf) const;
 	
 	int getDrawPosX(double timeDiff) const;
 	int getDrawPosY(int x) const;
@@ -990,6 +1058,8 @@ private:
 	
 	vector<LyricsBlock>::iterator m_lyricsPositionEnd;
 	/* Œ»İ‘Å‚Á‚Ä‚¢‚é‰ÌŒ‚ª‚Ç‚±‚Ü‚Å‚©A‚Â‚Ü‚èA[m_lyricsPosition, m_lyricsPositionEnd) */
+	/* ‚±‚Ì”ÍˆÍ‚Ì•¶š—ñ‚ª—¬‚ê‚Ä‚­‚é‚Æ‚±‚ë‚Æ•Ê‚Ì‚Æ‚±‚ë‚É•\¦‚³‚ê‚é */
+	CEffectStr m_lyricsBufferEffect;
 	
 	vector<LyricsBlock>::iterator m_lyricsBlockDrawLeft;
 	vector<LyricsBlock>::iterator m_lyricsBlockDrawRight;
@@ -1004,7 +1074,7 @@ private:
 	
 	char m_typeBuffer[TYPE_BUFFER_LEN + 1];
 	int m_typeBufferLen;
-	CEffectStr m_effectStr;
+	CEffectStr m_typeBufferEffect;
 	//deque<double> m_typeBufferTime;
 	
 	int m_phase;
@@ -1012,6 +1082,9 @@ private:
 	double m_timeBegin;
 	
 	char m_name[NAME_LEN + 1];	/* ƒvƒŒ[ƒ„[‚Ì–¼‘Oiİ’è‚³‚ê‚Ä‚¢‚½‚çj */
+	
+	bool m_flagLockName;
+		/* –¼‘O‚ªŠù‚Éİ’è‚³‚ê‚Ä‚¢‚é‚Æ‚«‚ÍAEsc‚ªˆê“x‰Ÿ‚³‚ê‚é‚Ü‚Å“ü—Í‚©‚ç•ÛŒì‚·‚é */
 	
 	int m_score;
 	int m_scoreTyping;	/* ƒ^ƒCƒsƒ“ƒO‚É‚æ‚é“¾“_ */
@@ -1065,8 +1138,9 @@ private:
 	
 	int m_soundHandleMusic;
 	
+	bool m_flagFailed;	/* ƒQ[ƒW‚ªØ‚ê‚Ä‹­§I—¹ */
+	
 	bool m_flagAbort;	/* Esc‚Å’†’f‚³‚ê‚©‚¯‚½‚Æ‚«‚Étrue‚É‚È‚é */
-	//double m_timeCountAbort;	/* 1‰ñ–Ú‚ÌEsc‚ª‰Ÿ‚³‚ê‚½ */
 };
 
 CTyping::CTyping(){
@@ -1159,8 +1233,9 @@ void CTyping::addNullLyrics(double time, bool isLast){
 	LyricsBlock lb;
 	lb.lyricsNum = m_lyrics.size();
 	lb.lyricsLen = 0;	/* u" "‚ª‚ ‚é‚©‚ç1v‚È‚Ç‚ğ‚í‚´‚í‚´‚µ‚È‚­‚Ä‚à‚æ‚¢ */
+		/* ‚Ş‚µ‚ëA•¶š—ñæ“¾‚Ì‚É0‚Å‚È‚¢‚ÆƒSƒ~‚ª“ü‚Á‚Ä¢‚é */
 	lb.isValid = isLast;	/* ÅŒã‚ÉisValid = true‚Ì”Ô•º‚ğ’u‚­B‚±‚ê‚Í–³ŠQB */
-	//lb.nTyped = 0;
+	lb.nTyped = 0;
 	lb.timeJust = time;
 	lb.timeUntil = time;
 	lb.isScoringTarget = false;
@@ -1320,6 +1395,10 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	
 	m_lyricsPositionEnd = m_lyricsPosition;	/* Å‰‚Í”ÍˆÍ‚È‚µ‚Æ‚¢‚¤‚±‚Æ‚É‚µ‚Ä‚¨‚±‚¤ */
 	
+	/* ƒ^ƒCƒv‚·‚é‚×‚«‰ÌŒ‚Ö‚©‚¯‚éƒ^ƒCƒsƒ“ƒOŒø‰Ê‚È‚µƒGƒtƒFƒNƒg‚ğ‰Šú‰» */
+	/* typeBuffer‚Æ”ä‚×‚Ä¬‚³‚ß‚ÌƒGƒtƒFƒNƒg */
+	m_lyricsBufferEffect.init(m_fontHandleBig, false, 50.0, 0.15);
+	
 	m_lyricsBlockDrawLeft = m_lyricsBlock.begin();
 	m_lyricsBlockDrawRight = m_lyricsBlockDrawLeft;
 	/* Å‰‚Ìdraw‚Åİ’è‚³‚ê‚é‚©‚ç‰½‚ğ“ü‚ê‚Ä‚à‚æ‚¢‚Ì‚¾‚ªA */
@@ -1332,7 +1411,9 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	/* ƒL[“ü—Í‚ğ‰Šú‰» */
 	m_typeBufferLen = 0;
 	
-	m_effectStr.init(m_fontHandleBig);
+	/* ƒ^ƒCƒv‚·‚éˆÊ’u‚Ö‚©‚¯‚éƒ^ƒCƒsƒ“ƒOŒø‰Ê‚ ‚èƒGƒtƒFƒNƒg‚ğ‰Šú‰» */
+	/* lyricsBuffer‚Æ”ä‚×‚Ä‘å‚«‚ß‚ÌƒGƒtƒFƒNƒg */
+	m_typeBufferEffect.init(m_fontHandleBig, true, 15.0, 0.3);
 	//m_typeBufferTime.clear();
 	
 	/* ‰½‚©ƒL[‚ğ‰Ÿ‚·‚Ü‚Å‚Ín‚Ü‚ç‚È‚¢‚Ì‚ÅA‚Ü‚¾‚Í‚¶‚Ü‚Á‚Ä‚¢‚È‚¢ */
@@ -1370,6 +1451,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	
 	m_soundHandleMusic = -1;
 	
+	m_flagFailed = false;
+	
 	m_flagAbort = false;
 }
 
@@ -1390,14 +1473,12 @@ void CTyping::setChallenge(CChallenge &challenge){
 }
 
 void CTyping::keyboard(char ch, double timeCount){
-	if(ch == CTRL_CODE_ESC){
-		if(m_flagAbort){	/* ‚±‚ê‚ª2‰ñ–ÚiˆÈ~j */
-			//if(timeCount - m_timeCountAbort >= 0.2){
-				phase(PHASE_EXIT);
-			//}
+	if(m_phase < PHASE_RESULT && ch == CTRL_CODE_ESC){
+	/* Œ‹‰Ê‰æ–Ê‚æ‚èŒã‚Å‚ÍEsc‚É‚æ‚éI—¹‚ğ‚³‚¹‚È‚¢ */
+		if(m_flagAbort){	/* ‚±‚ê‚ª2‰ñ–Ú */
+			phase(PHASE_EXIT);
 		}else{
 			m_flagAbort = true;
-			//m_timeCountAbort = timeCount;
 		}
 		return;
 	}
@@ -1426,39 +1507,43 @@ void CTyping::keyboard(char ch, double timeCount){
 	if(m_phase == PHASE_RESULT){	/* ƒXƒRƒA•\¦’†‚È‚ç */
 		/* –¼‘O‹L“ü‚Ì‚½‚ß‚Éƒoƒbƒtƒ@‚ğ“Ç‚İ‘‚« */
 		double time = getTime(timeCount);	/* ƒL[ƒ{[ƒh‚ğ‰Ÿ‚µ‚½‚Ü‚Å‚ÌŠÔ‚ğæ“¾ */
-		if(time < 2.0){	/* I—¹’¼Œã‚ÌŒë‘€ì‚ğ–h~ */
-			return;
-		}
-
+		
 		if(ch == ' '){	/* ƒXƒy[ƒX‚ÍƒAƒ“ƒ_[ƒo[‚É•ÏŠ·iƒXƒy[ƒX‚Ì‚İ‚Ìˆá‚¢‚ğì‚ç‚È‚¢‚½‚ßj */
 			ch = '_';
 		}
 		int ret;
-		if(strlen(m_name) > 0){
+		if(m_flagLockName){
 			char buf[1];
 			int len = 0;
 			ret = editBuffer(ch, buf, len);	/* ƒ_ƒ~[‚ğ‘€ì */
-			/* Enter‚ª‰Ÿ‚³‚ê‚½‚©‚Ç‚¤‚©‚Ì‚İ‚ªd—v */
+			/* Enter‚âEsc‚ª‰Ÿ‚³‚ê‚½‚©‚Ç‚¤‚©‚Ì‚İ‚ªd—v */
 		}else{
 			ret = editBuffer(ch, m_typeBuffer, m_typeBufferLen);
 		}
 		switch(ret){
 		case EDIT_BUFFER_OK:
+			if(time < 4.0){	/* Œ‹‰Ê‚ª‚·‚×‚Äo‚é‚Ü‚ÅŠm’è‚³‚¹‚È‚¢ */
+				//skipTime(1.0);	/* ‘Ò‚Â‚Ì‚ªŒ™‚Èl‚Ì‚½‚ß‚Écc */
+				return;
+			}
 			if(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode){
 				/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡Aƒ‰ƒ“ƒLƒ“ƒO‚É‚Ì‚¹‚È‚¢ */
 				/* ƒŠƒvƒŒƒC‚âƒfƒoƒbƒO‚Í‹L˜^‚µ‚È‚¢ */
 				phase(PHASE_FINISHED);
 			}else{	/* ƒŠƒvƒŒƒCEƒfƒoƒbƒOƒ‚[ƒh */
-				if(strlen(m_name) > 0){
-					strcpy(m_typeBuffer, m_name);
-					phase(PHASE_FINISHED);
-				}
 				if(m_typeBufferLen > 0){	/* –¼‘O‚ª“ü—Í‚³‚ê‚Ä‚¢‚é‚©Šm”F */
 					phase(PHASE_FINISHED);
 				}
 			}
 			break;
-		case EDIT_BUFFER_CANCEL:	/* y‚±‚Ì‰Â”\«‚Í‚È‚¢‚Í‚¸z */
+		case EDIT_BUFFER_CANCEL:
+			if(m_flagLockName){
+				m_flagLockName = false;	/* –¼‘O‚Ì‘‚«Š·‚¦–h~‚ğ‚È‚­‚· */
+			}else{
+				/* –¼‘O“ü—Í‚ğ‘SÁ‹ */
+				strcpy(m_typeBuffer, "");
+				m_typeBufferLen = 0;
+			}
 			break;
 		}
 		return;
@@ -1513,6 +1598,8 @@ void CTyping::keyboard_1(char ch, double time){
 		/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 		keyboardEffect(ch, time);
 		
+		updateLyricsBuffer(time);
+		
 		updateGauge();
 		return;
 	}
@@ -1534,6 +1621,10 @@ void CTyping::keyboard_1(char ch, double time){
 			/* ‚·‚Å‚Éƒ^ƒCƒ~ƒ“ƒO‚ªÌ“_‚³‚ê‚½‚Æ‚±‚ë‚âA‹æØ‚è */
 			continue;
 		}
+		vector<LyricsBlock>::iterator lyricsPos = tmpLyricsPosition;
+			/* input‚ÅtmpLyricsPosition‚ª•ÏX‚³‚ê‚¤‚é‚Ì‚ÅT‚¦‚Ä‚¨‚­B */
+			/* yƒAƒ‹ƒSƒŠƒYƒ€•Ï‚¦‚½‚¢z */
+		
 		if(input(ch, tmpBuffer, tmpLen, tmpLyricsPosition, false, time)){
 //printf("ok\n");
 		/* V‚µ‚¢ˆÊ’u‚Å‚»‚Ì“ü—Í‚ª“ü‚Á‚½ */
@@ -1556,6 +1647,9 @@ void CTyping::keyboard_1(char ch, double time){
 			/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 			keyboardEffect(ch, time);
 			
+			clearLyricsBuffer(lyricsPos);	/* ŒÃ‚¢“à—e‚ğˆê“xÁ‹‚µ‚Ä‚©‚ç */
+			updateLyricsBuffer(time);	/* V‚µ‚­İ’è */
+			
 			updateGauge();
 			return;
 		}
@@ -1567,11 +1661,75 @@ void CTyping::keyboard_1(char ch, double time){
 void CTyping::keyboardEffect(char ch, double time){
 	m_effect1.insert(X_CIRCLE, Y_CIRCLE, ch, GetColor(170, 170, 255), time);
 	//m_typeBufferTime.push_back(time);
-	m_effectStr.push(ch, time);
-	m_effectStr.update(m_typeBuffer, m_typeBufferLen, time);
+	m_typeBufferEffect.push(ch, time);
+	m_typeBufferEffect.update(m_typeBuffer, m_typeBufferLen, time);
 	return;
 }
 
+void CTyping::updateLyricsBuffer(double time){
+	/* m_lyricsPositionEnd‚ÌXV‚Æ‚»‚ê‚É”º‚¤ƒGƒtƒFƒNƒg‚Ìî•ñ‚Ì’Ç‰Á */
+	{
+		vector<LyricsBlock>::iterator lastPos = m_lyricsPositionEnd;
+		
+		if(m_lyricsPositionEnd < m_lyricsPosition){
+			m_lyricsPositionEnd = m_lyricsPosition;
+		}
+		
+		if(m_lyricsPositionEnd->timeJust != INFTY){
+#if 0
+			while(m_lyricsPositionEnd->timeJust != INFTY &&
+						/* ’[‚ğ’´‚¦‚È‚¢‚æ‚¤‚Éƒ`ƒFƒbƒN */
+					( time >= m_lyricsPositionEnd->timeJust
+						/* ‚Ü‚¾A‚¿‚å‚¤‚Ç‚ÌˆÊ’u‚É’B‚µ‚Ä‚¢‚È‚¢Å‰‚Ì‰ÌŒ‚Ü‚Åi‚Ş */
+					|| (m_lyricsPositionEnd->isValid && !m_lyricsPositionEnd->isScoringTarget) )){
+						/* Ì“_Ï‚İA‚Â‚Ü‚èA‘Å‚¿‚©‚¯‚Ì‚à‚Ì‚ğŠÜ‚Ş‚æ‚¤‚É”ÍˆÍ‚ğ‘‚â‚· */
+				m_lyricsPositionEnd++;
+			}
+#endif
+			if(!(m_challenge.test(CHALLENGE_HIDDEN) || m_challenge.test(CHALLENGE_STEALTH))){
+			/* Hidden, Stealth‚Å‚ÍAŠÔŒo‰ß‚É‚æ‚è‘Å‚Â‚×‚«‚É‚È‚Á‚½‚±‚Æ‚ğ‹³‚¦‚È‚¢ */
+				while(time >= m_lyricsPositionEnd->timeJust){
+					/* ‚Ü‚¾A‚¿‚å‚¤‚Ç‚ÌˆÊ’u‚É’B‚µ‚Ä‚¢‚È‚¢Å‰‚Ì‰ÌŒ‚Ü‚Åi‚Ş */
+					m_lyricsPositionEnd++;
+				}
+			}
+			
+			while(m_lyricsPositionEnd->isValid && !m_lyricsPositionEnd->isScoringTarget){
+				/* Ì“_Ï‚İA‚Â‚Ü‚èA‘Å‚¿‚©‚¯‚Ì‚à‚Ì‚ğŠÜ‚Ş‚æ‚¤‚É”ÍˆÍ‚ğ‘‚â‚· */
+				m_lyricsPositionEnd++;
+			}
+		}
+		
+		while(lastPos != m_lyricsPositionEnd){
+			char buf[256];
+			getBlockStr(lastPos, buf, false);
+			if(lastPos->timeJust < time){
+				m_lyricsBufferEffect.push(buf, lastPos->timeJust);
+			}else{
+				m_lyricsBufferEffect.push(buf, time);
+			}
+			lastPos++;
+		}
+	}
+	
+	{	/* ‚Ç‚Ì•”•ª‚ªÀÛ‚Éc‚Á‚Ä‚¢‚é‚©‚ğ‹³‚¦‚é */
+		char buf[256];
+		int len;
+		len = getLyricsBuffer(buf);
+		
+		m_lyricsBufferEffect.update(buf, len, time);
+	}
+}
+
+/* ‚Ç‚±‚Ü‚Å‚Ì“à—e‚ªÁ‚¦‚½‚©‚ğ“`‚¦‚é */
+void CTyping::clearLyricsBuffer(vector<LyricsBlock>::iterator lyricsPos){
+	/* LyricsBuffer‚Ì“à—e‚ğÁ‹B‚±‚ê‚É‚æ‚Á‚Äc‘œ‚ğ”­¶‚³‚¹‚È‚¢B */
+	/* ‚à‚Æ‚à‚Æ‚ ‚Á‚½c‘œ‚Íc‚·B */
+	m_lyricsPositionEnd = lyricsPos;
+	m_lyricsBufferEffect.clear();
+}
+
+/* ------------------------------------------------------------ */
 
 bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•Ô‚· */
 	if(m_phase == PHASE_EXIT){	/* I—¹‚·‚é‚±‚Æ‚É‚È‚Á‚Ä‚¢‚é */
@@ -1601,12 +1759,20 @@ bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•
 	if(m_phase == PHASE_FADEOUT){
 		double time = getTime(timeCount);
 		if(time >= m_timeLength + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
-			phase(PHASE_RESULT);
+			phase(PHASE_RESULT);	/* Œ‹‰Ê‰æ–Ê‚É‚¤‚Â‚é */
+			if(m_phase == PHASE_EXIT){	/* iŒ‹‰Ê‰æ–Ê‚ª‚È‚µ‚ÅjI—¹‚·‚é‚±‚Æ‚É‚È‚Á‚½ */
+				return false;
+			}
 			return true;
 		}
 	}
 	
 	if(m_phase != PHASE_MAIN){	/* ‚±‚±‚©‚çæ‚ÍƒQ[ƒ€ƒƒCƒ“‚Ì‚Æ‚«‚Ìˆ— */
+		return true;
+	}
+	
+	if(m_flagFailed){	/* ƒQ[ƒWØ‚ê‚Å‹­§I—¹ */
+		phase(PHASE_FADEOUT);
 		return true;
 	}
 	
@@ -1659,7 +1825,7 @@ bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•
 	while(1){
 		if(m_lyricsPosition->timeJust == INFTY){
 			/* ÅŒã‚ÌisValid = true‚È‚Ì‚É”Ô•º‚È‚â‚Â‚Ì‚Æ‚±‚ë‚É‚¢‚é */
-			m_lyricsPositionEnd = m_lyricsPosition;
+			//m_lyricsPositionEnd = m_lyricsPosition;
 			phase(PHASE_FADEOUT);
 			return true;
 		}
@@ -1677,24 +1843,12 @@ bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•
 		while(!(*m_lyricsPosition).isValid){
 			m_lyricsPosition++;
 		}
+		clearLyricsBuffer(m_lyricsPosition);
 		
 		updateGauge();
 	}
 	
-	if(m_lyricsPositionEnd < m_lyricsPosition){
-		m_lyricsPositionEnd = m_lyricsPosition;
-
-	}
-	
-	/* ‚Ü‚¾A‚¿‚å‚¤‚Ç‚ÌˆÊ’u‚É’B‚µ‚Ä‚¢‚È‚¢Å‰‚Ì‰ÌŒ‚Ü‚Åi‚Ş */
-	while(time >= (*m_lyricsPositionEnd).timeJust){
-		m_lyricsPositionEnd++;
-	}
-	
-	/* Ì“_Ï‚İA‚Â‚Ü‚èA‘Å‚¿‚©‚¯‚Ì‚à‚Ì‚ğŠÜ‚Ş‚æ‚¤‚É”ÍˆÍ‚ğ‘‚â‚· */
-	while(m_lyricsPositionEnd->isValid && !m_lyricsPositionEnd->isScoringTarget){
-		m_lyricsPositionEnd++;
-	}
+	// lyricsPositionEnd‚ÌXV‚ÍupdateLyricsBuffer‚ÉˆÚ“®B‚»‚à‚»‚àdraw‚Å‚â‚é‚©‚ç‚±‚±‚Å‚â‚ç‚È‚¢B
 	
 //printf("]\n");
 	if(m_idleCounter++ % 20 == 0){	/* 20‰ñ‚É1‰ñÀs */
@@ -1765,6 +1919,12 @@ double CTyping::getTime(double timeCount) const{	/* timeCount‚ÌŠJn‚©‚ç‚ÌŒo‰
 	return timeCount - m_timeBegin;
 }
 
+#if 0
+void CTyping::skipTime(double sec){	/* Œo‰ßŠÔ‚ğsec‚¾‚¯‘‚â‚· */
+	m_timeBegin -= sec;	/* ŠJn‚ª‘‚©‚Á‚½‚±‚Æ‚É‚·‚ê‚Î‰ğŒˆ */
+}
+#endif
+
 /* ------------------------------------------------------------ */
 
 void CTyping::phase(int phaseNum){
@@ -1779,9 +1939,21 @@ void CTyping::phase(int phaseNum){
 	if(phaseNum == PHASE_FADEOUT){	/* I‚í‚Á‚½‚Ì‚ÅƒtƒF[ƒhƒAƒEƒg‚·‚é */
 		m_timeLength = getTime();	/* I‚í‚Á‚½‚ğ•Û‘¶ */
 	}else if(phaseNum == PHASE_RESULT){	/* I—¹‚µ‚ÄAƒXƒRƒA•\¦‚É */
+		if(m_flagFailed){
+			phase(PHASE_EXIT);	/* ‹­§I—¹‚ÍAƒXƒRƒA•\¦‚È‚µ */
+			return;
+		}
 		setTime();	/* •\¦ŠJn‚³‚ê‚Ä‚©‚ç‚ÌŠÔ‚ğ—˜—p‚·‚é‚½‚ß‚ÉƒZƒbƒg */
-		m_typeBuffer[0] = '\0';	/* –¼‘O“ü—Í‚Ég‚¤‚Ì‚Åƒoƒbƒtƒ@‚ğƒNƒŠƒA */
-		m_typeBufferLen = 0;
+		
+		strcpy(m_typeBuffer, m_name);	/* ƒoƒbƒtƒ@‚É–¼‘O‚ğ“ü‚ê‚éB */
+		m_typeBufferLen = strlen(m_name);
+		if(m_typeBufferLen > 0){	/* –¼‘O‚ªŠù‚É“ü—Í‚³‚ê‚Ä‚¢‚é‚È‚çA•ÛŒì‚·‚é */
+			m_flagLockName = true;
+		}else{
+			m_flagLockName = false;
+		}
+		
+		m_flagAbort = false;	/* Esc‚É‚æ‚é’†’f‚ğæ‚èÁ‚· */
 		
 		/* ’Ê‰ß‚µ‚½ŒÂ”‚ğ”‚¦‚Ä‚¨‚­ */
 		m_countPass = m_countAll - m_countExcellent - m_countGood - m_countFair - m_countPoor;
@@ -2140,7 +2312,12 @@ void CTyping::scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int
 		break;
 	case ID_POOR:
 		m_gauge -= 3;
-		if(m_gauge < 0)m_gauge = 0;
+		if(m_gauge <= 0){
+			m_gauge = 0;
+			if(g_config.f_failByGauge){
+				m_flagFailed = true;
+			}
+		}
 		m_gaugeNewCount++;
 		break;
 	}
@@ -2154,7 +2331,7 @@ Good		+4
 Fair		+1
 Poor		-3
 Passed		-5
-”ñ‘Å‚¿Ø‚è	-2
+”ñ‘Å‚¿Ø‚è	-4(-2‚¾‚Á‚½‚ªAŒµ‚µ‚­‚µ‚½)
 
 2n‚©‚çƒXƒ^[ƒg
 ’l‚Ì”ÍˆÍ‚Í 0 - 8n
@@ -2177,8 +2354,8 @@ void CTyping::updateGauge(){
 		if(count > m_gaugeLastCount){
 			/* count ‚ªi‚ñ‚¾‚ç‘Å‚¿“¦‚µ‚Æ’Ê‰ß‚ğ”»’è */
 			int lost = count - m_countClear;	/* ‘Å‚¿‚«‚ê‚È‚©‚Á‚½ŒÂ” */
-			m_gauge -= (lost - m_gaugeLastLost) * 2;
-			/* ‘Å‚¿‚«‚ê‚È‚¢‚Æ -2iPass‚ÌŒ¸“_‚Æd•¡‚·‚éj */
+			m_gauge -= (lost - m_gaugeLastLost) * 4;
+			/* ‘Å‚¿‚«‚ê‚È‚¢‚Æ -4iPass‚ÌŒ¸“_‚Æd•¡‚·‚éj */
 			m_gaugeLastLost = lost;
 			
 			{
@@ -2186,7 +2363,7 @@ void CTyping::updateGauge(){
 				m_gaugeLastCount = count;
 				
 				t -= m_gaugeNewCount;
-				if(t < 0){
+				if(t < 0){	/* count‚ªi‚Ş‘O‚É‘Å‚Ä‚é‚±‚Æ‚ª‚ ‚é‚ªA‚±‚ê‚ÍŒã‰ñ‚µ‚·‚é */
 					m_gaugeNewCount = -t;
 				}else{
 					m_gauge -= t * 5;
@@ -2197,8 +2374,11 @@ void CTyping::updateGauge(){
 		}
 	}
 	
-	if(m_gauge < 0){
+	if(m_gauge <= 0){
 		m_gauge = 0;
+		if(g_config.f_failByGauge){
+			m_flagFailed = true;
+		}
 	}
 }
 
@@ -2219,6 +2399,10 @@ int CTyping::getDrawGaugeColor(int pos, int cnt){
 }
 
 void CTyping::drawGauge(bool isResult){
+	if(m_flagFailed){	/* yƒQ[ƒW0‚Å€‚ñ‚¾Œã‚É‰ñ•œ‚µ‚½‚è‚·‚é‚±‚Æ‚ª‚È‚¢‚æ‚¤A•`‰æ‚É§Œäz */
+		m_gauge = 0;
+	}
+	
 	int y0, y1;
 	
 	if(isResult){
@@ -2262,8 +2446,8 @@ void CTyping::drawTypeBuffer(double time){
 	DrawStringToHandle(X_BUFFER, Y_BUFFER, m_typeBuffer,
 		GetColor(255, 255, 255), m_fontHandleBig);
 */
-	m_effectStr.update(m_typeBuffer, m_typeBufferLen, time);	/* ”O‚Ì‚½‚ßy–{—ˆ‚Í•s—vz */
-	m_effectStr.draw(X_BUFFER, Y_BUFFER, time);
+	m_typeBufferEffect.update(m_typeBuffer, m_typeBufferLen, time);	/* ”O‚Ì‚½‚ßy–{—ˆ‚Í•s—vz */
+	m_typeBufferEffect.draw(X_BUFFER, Y_BUFFER, time);
 #if 0
 	int x = 0;
 	char str[2];
@@ -2301,11 +2485,23 @@ void CTyping::drawTypeBuffer(double time){
 
 /* ------------------------------------------------------------ */
 
-int CTyping::getBlockStr(vector<LyricsBlock>::iterator itr, char *buf) const{
+/* true:–¢ƒ^ƒCƒv‚Ì‚à‚Ì‚ğæ“¾, false:‚·‚×‚Äæ“¾ */
+int CTyping::getBlockStr(vector<LyricsBlock>::iterator itr, char *buf, bool f_getUntyped) const{
 	int len = 0;
-	for(int j=(*itr).nTyped; j<(*itr).lyricsLen; j++){	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
+	for(int j = (f_getUntyped ? itr->nTyped : 0);
+			j<(*itr).lyricsLen; j++){	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
 		buf[len++] = m_lyrics[(*itr).lyricsNum + j].ch;
 	}
+	buf[len] = '\0';
+	return len;
+}
+
+int CTyping::getLyricsBuffer(char *buf) const{
+	int len = 0;
+	for(vector<LyricsBlock>::iterator i = m_lyricsPosition; i != m_lyricsPositionEnd; i++){
+		len += getBlockStr(i, &buf[len], true);
+	}
+	buf[len] = '\0';
 	return len;
 }
 
@@ -2337,7 +2533,7 @@ int CTyping::getDrawPosY(int x) const{
 void CTyping::draw(){
 	if(m_phase >= PHASE_RESULT){	/* ƒXƒRƒA•\¦ˆÈ~ */
 		drawResult();
-		drawFlagAbort();
+		//drawFlagAbort();
 		return;
 	}
 	double time;
@@ -2463,8 +2659,7 @@ void CTyping::draw(){
 			}
 			
 			char buf[256];
-			int len = getBlockStr(i, buf);	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
-			buf[len] = '\0';
+			int len = getBlockStr(i, buf, true);	/* ƒuƒƒbƒN“à‚Ì–¢ƒ^ƒCƒv‚Ì•¶š‚ğbuf‚ÉŠi”[ */
 			if(len == 0){	/* ‚·‚×‚Äƒ^ƒCƒv‚³‚ê‚Ä‚¢‚½ */
 				if((*i).clearedTime < 0){
 					/* ‚ğ•Û‘¶ */
@@ -2587,20 +2782,26 @@ void CTyping::draw(){
 	}
 	
 	if(!m_challenge.test(CHALLENGE_LYRICS_STEALTH)){	/* LyricsStealth ‚¾‚Æ•\¦‚³‚ê‚È‚¢ */
+		updateLyricsBuffer(time);
+		
 		/* ‚¢‚Ü‘ÎÛ‚É‚È‚Á‚Ä‚¢‚éƒ[ƒ}š‰ÌŒ(m_lyricsPosition‚©‚çm_lyricsPositionEnd‚Ü‚Å)‚ğ•\¦ */
 		/* Hidden ‚â Stealth ‚Ì‚Æ‚«Aƒqƒ“ƒg‚É‚È‚é‚Ì‚ğ”ğ‚¯‚é‚½‚ßA */
 		/* ‰½‚©‚ğ‘Å‚Â‚Ü‚Å‚Í—áŠO“I‚É•\¦‚³‚ê‚È‚¢ */
+		/* yupdateLyricsBuffer‚ÅPositionEnd‚ğŒ«‚­ŠÇ—‚·‚é‚±‚Æ‚É‚È‚Á‚½z */
+#if 0
 		if(!( (m_challenge.test(CHALLENGE_HIDDEN) || m_challenge.test(CHALLENGE_STEALTH))
 				&& m_typeBufferLen == 0 )){
+#endif
+			m_lyricsBufferEffect.draw(X_LYRICS_BIG, Y_LYRICS_BIG, time);
+			/*
 			char buf[256];
-			int len = 0;
-			for(vector<LyricsBlock>::iterator i = m_lyricsPosition; i != m_lyricsPositionEnd; i++){
-				len += getBlockStr(i, &buf[len]);
-			}
-			buf[len] = '\0';
+			getLyricsBuffer(buf);
 			DrawStringToHandle(X_LYRICS_BIG, Y_LYRICS_BIG, buf,
 				GetColor(255, 255, 255), m_fontHandleBig);
+			//*/
+#if 0
 		}
+#endif
 	}
 	
 	/* ƒ^ƒCƒv‚µ‚½•¶š‚ğ•\¦ */
@@ -2638,15 +2839,26 @@ void CTyping::draw(){
 		if(xTime >= 1.0){
 			xTime = 1.0;
 		}
-		double tmp = ((-2.0*xTime)+3)*xTime*xTime;
-		SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * tmp);
-		DrawBox(0, 0, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
+		if(m_flagFailed){
+			/* ã‰º‚©‚ç‚¨‚ë‚· */
+			double t = xTime * 1.5;	/* ‚±‚Á‚¿‚Í1.5”{‚Ì‘¬‚³‚ÅŠ®—¹‚³‚¹‚é */
+			t *= 1.5;
+			if(t >= 1.0){
+				t = 1.0;
+			}
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, 224);
+			double tmp = t * (1 + 3.0 * t * (t - 1.0));
+			int h = H_WINDOW * 0.5 * tmp;
+			DrawBox(0, 0, W_WINDOW, h, GetColor(64, 64, 64), TRUE);
+			DrawBox(0, H_WINDOW - h, W_WINDOW, H_WINDOW, GetColor(64, 64, 64), TRUE);
+		}
+		
+		{
+			double tmp = ((-2.0*xTime)+3.0)*xTime*xTime;
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, 255 * tmp);
+			DrawBox(0, 0, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
+		}
 		SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
-		/*
-		int h = (int)(H_WINDOW * 0.5 * xTime * xTime);
-		DrawBox(0, 0, W_WINDOW, h, GetColor(0, 0, 0), TRUE);
-		DrawBox(0, H_WINDOW - h, W_WINDOW, H_WINDOW, GetColor(0, 0, 0), TRUE);
-		*/
 	}
 	
 	drawFlagAbort();
@@ -2706,14 +2918,19 @@ void CTyping::drawResult(){
 	if(!(m_challenge.isEasy() || m_isReplay || g_config.f_debugMode)){	/* ’Êí‚Ì‚İ */
 		/* ŠÈ’P‚É‚È‚éƒIƒvƒVƒ‡ƒ“‚ğg—p‚µ‚½ê‡‚âƒŠƒvƒŒƒC‚âƒfƒoƒbƒO@‚Å‚È‚¯‚ê‚ÎA */
 		/* ƒ‰ƒ“ƒLƒ“ƒO‚É‚¢‚ê‚é‚½‚ßA–¼‘O‚ğ“ü—ÍB */
-		if(strlen(m_name) > 0){	/* –¼‘O‚ªİ’è‚³‚ê‚Ä‚¢‚éê‡A‚»‚ê‚ğ•\¦ */
-			DrawStringToHandle(60, 410, m_name, GetColor(255, 255, 255), m_fontHandleBig);
-		}else if(time >= 2.0){
+		
+		DrawStringToHandle(60, 410, m_typeBuffer, GetColor(255, 255, 255), m_fontHandleBig);
+		/* “ü—Í‚³‚ê‚½–¼‘O‚ğ•\¦ */
+		if(time >= 4.0){
 			/* –¼‘O‚ªİ’è‚³‚ê‚Ä‚È‚¢ê‡Aˆê’èŠÔ‚ªŒo‚Á‚½‚ç“ü—ÍŠJn */
-			DrawFormatStringToHandle(30, 385, GetColor(255, 255, 255), m_fontHandleNormal,
-				"–¼‘O‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢ :");
-			DrawStringToHandle(60, 410, m_typeBuffer, GetColor(255, 255, 255), m_fontHandleBig);
-			/* “ü—Í‚³‚ê‚½•¶š—ñ‚ğ•\¦ */
+			if(m_phase < PHASE_FINISHED){	/* –¼‘O‚ªŠm’è‚µ‚½‚Ì‚¿‚Í•\¦‚µ‚È‚¢ */
+				DrawFormatStringToHandle(30, 395, GetColor(255, 255, 255), m_fontHandleNormal,
+					"–¼‘O‚ğ“ü—Í‚µ‚Ä‚­‚¾‚³‚¢ :");
+				if(m_flagLockName){
+					DrawFormatStringToHandle(280, 395, GetColor(64, 64, 85), m_fontHandleNormal,
+						"i Esc: –¼‘O•ÏX j");
+				}
+			}
 		}
 	}
 	if(m_phase == PHASE_FINISHED){
@@ -3512,10 +3729,10 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	
 	if(inputHandle == -1){	/* ŒŸõˆÈŠO */
-		DrawStringToHandle(10, 370, "ª/«: ‹È‘I‘ğ,   F: ‹ÈŒŸõ, R: ƒ‰ƒ“ƒ_ƒ€,   F5: ƒŠƒXƒgÄ“Ç,",
+		DrawStringToHandle(10, 370, "ª/«: ‹È‘I‘ğ,   F: ŒŸõ, R: ƒ‰ƒ“ƒ_ƒ€,   F5: Ä“Ç,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
-		DrawStringToHandle(10, 390, "©/¨: î•ñ/ƒ‰ƒ“ƒLƒ“ƒO•\¦, Tab: ‘S‰æ–ÊØ‚è‘Ö‚¦,",
+		DrawStringToHandle(10, 390, "©/¨: î•ñ/ƒ‰ƒ“ƒLƒ“ƒO•\¦, Tab: ‘S‰æ–ÊØ‘Ö,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
 		{
