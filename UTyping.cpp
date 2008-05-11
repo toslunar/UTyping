@@ -36,6 +36,9 @@ using namespace std;
 #define COLOR_FAIR2 GetColor(128, 192, 255)
 #define COLOR_POOR2 GetColor(192, 192, 192)
 
+#define COLOR_TIME GetColor(64, 192, 255)
+#define COLOR_TIME2 GetColor(192, 192, 192)
+
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
 #define SEC_FAIR 0.10
@@ -85,10 +88,15 @@ using namespace std;
 //#define W_GAUGE 500
 #define W_GAUGE_SEGMENT 5
 #define W_GAUGE (W_GAUGE_SEGMENT * GAUGE_COUNT)
-#define Y_GAUGE 445
+#define Y_GAUGE 455
 #define H_GAUGE 10
 #define W_GAUGE_PADDING 4
 #define H_GAUGE_PADDING 2
+
+#define X_TIME X_GAUGE
+#define W_TIME W_GAUGE
+#define Y_TIME 445
+#define H_TIME 4
 
 #define X_INFO 160
 #define Y_INFO 10
@@ -1025,7 +1033,10 @@ private:
 	void initGauge();
 	void updateGauge();
 	int getDrawGaugeColor(int pos, int cnt);
+	double getDrawGaugeAlpha(int pos, int cnt);
 	void drawGauge(bool isResult);
+
+	void drawElapsedTime(double time);
 	
 	void drawTypeBuffer(double time);
 	
@@ -1125,7 +1136,8 @@ private:
 	int m_textColor;
 	double m_textTime;
 	
-	double m_timeLength;	/* ƒQ[ƒ€‚ªI—¹‚µAƒtƒF[ƒhƒAƒEƒg‚ªn‚Ü‚Á‚½i‹È‚ªn‚Ü‚Á‚Ä‚©‚ç‚Ìj‚ğ•Û‘¶ */
+	double m_timeFinished;	/* ƒQ[ƒ€‚ªI—¹‚µAƒtƒF[ƒhƒAƒEƒg‚ªn‚Ü‚Á‚½i‹È‚ªn‚Ü‚Á‚Ä‚©‚ç‚Ìj‚ğ•Û‘¶ */
+	double m_timeLength;	/* •ˆ–Ê‚ÌÅŒãAis—¦•\¦‚Ég—p */
 	
 	CChallenge m_challenge;
 	
@@ -1272,6 +1284,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	double frequencyRate = m_challenge.frequencyRate();
 	/* KeyShift‚É‚æ‚éü”g”‚Ì”{—¦ */
 	
+	m_timeLength = -1;
+
 	/* “Ç‚İ‚İŠJn */
 	
 	char tmpBuf[256];
@@ -1340,6 +1354,7 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			if(n < 1){
 				throw "[•ˆ–Ê] ‘®‚ª•s³‚Å‚·B(/)";
 			}
+			m_timeLength = time;	/* –ˆ‰ñ‘‚«‚ñ‚ÅAÅŒã‚Ì‹æØ‚è‚ÌˆÊ’u‚ğæ“¾ */
 			time /= frequencyRate;
 			if(!m_lyricsKanji.empty()){	/* •\¦‚·‚é‰ÌŒ‚ª‘¶İ‚µ‚Ä‚¢‚é */
 				LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* ‚»‚Ì‚È‚©‚ÅÅŒã‚Ì‚à‚Ì‚ğ‘€ì */
@@ -1758,7 +1773,7 @@ bool CTyping::idle(double timeCount){	/* ‘±‚¯‚é‚È‚çiI—¹‚·‚é‚Æ‚«ˆÈŠOj true ‚ğ•
 	}
 	if(m_phase == PHASE_FADEOUT){
 		double time = getTime(timeCount);
-		if(time >= m_timeLength + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
+		if(time >= m_timeFinished + SEC_FADEOUT){	/* ÅŒã‚Ì‰¹•„‚ª’Ê‰ß‚µ‚½ŒãƒtƒF[ƒhƒAƒEƒg‚ªI—¹‚µ‚½ */
 			phase(PHASE_RESULT);	/* Œ‹‰Ê‰æ–Ê‚É‚¤‚Â‚é */
 			if(m_phase == PHASE_EXIT){	/* iŒ‹‰Ê‰æ–Ê‚ª‚È‚µ‚ÅjI—¹‚·‚é‚±‚Æ‚É‚È‚Á‚½ */
 				return false;
@@ -1937,7 +1952,7 @@ void CTyping::phase(int phaseNum){
 	}
 	
 	if(phaseNum == PHASE_FADEOUT){	/* I‚í‚Á‚½‚Ì‚ÅƒtƒF[ƒhƒAƒEƒg‚·‚é */
-		m_timeLength = getTime();	/* I‚í‚Á‚½‚ğ•Û‘¶ */
+		m_timeFinished = getTime();	/* I‚í‚Á‚½‚ğ•Û‘¶ */
 	}else if(phaseNum == PHASE_RESULT){	/* I—¹‚µ‚ÄAƒXƒRƒA•\¦‚É */
 		if(m_flagFailed){
 			phase(PHASE_EXIT);	/* ‹­§I—¹‚ÍAƒXƒRƒA•\¦‚È‚µ */
@@ -2384,6 +2399,18 @@ void CTyping::updateGauge(){
 
 int CTyping::getDrawGaugeColor(int pos, int cnt){
 	if(pos < 12){
+		return GetColor(255, 32, 0);
+	}else if(pos < 36){
+		return GetColor(224, 255, 0);
+	}else if(pos < 72){
+		return GetColor(0, 64, 255);
+	}else{
+		return GetColor(255, 255, 255);
+	}
+}
+/*
+int CTyping::getDrawGaugeColor(int pos, int cnt){
+	if(pos < 12){
 		if(pos < cnt) return GetColor(255, 32, 0);
 		else return GetColor(64, 8, 0);
 	}else if(pos < 36){
@@ -2396,6 +2423,42 @@ int CTyping::getDrawGaugeColor(int pos, int cnt){
 		if(pos < cnt) return GetColor(255, 255, 255);
 		else return GetColor(64, 64, 64);
 	}
+}
+
+int CTyping::getDrawGaugeColor(int pos, int cnt){
+	cnt--;
+	if(pos < 12){
+		if(pos == cnt) return GetColor(255, 32, 0);
+		else if(pos < cnt) return GetColor(192, 24, 0);
+		else return GetColor(64, 8, 0);
+	}else if(pos < 36){
+		if(pos == cnt) return GetColor(224, 255, 0);
+		else if(pos < cnt) return GetColor(168, 192, 0);
+		else return GetColor(56, 64, 0);
+	}else if(pos < 72){
+		if(pos == cnt) return GetColor(0, 64, 255);
+		else if(pos < cnt) return GetColor(0, 48, 192);
+		else return GetColor(0, 16, 64);
+	}else{
+		if(pos == cnt) return GetColor(255, 255, 255);
+		else if(pos < cnt) return GetColor(192, 192, 192);
+		else return GetColor(64, 64, 64);
+	}
+}
+*/
+double CTyping::getDrawGaugeAlpha(int pos, int cnt){
+	if(pos >= cnt) return 0.25;
+	else return 1.0;
+#if 0
+	cnt--;
+	cnt-=pos;	/* “_“”‚µ‚Ä‚¢‚é‰E’[‚©‚ç‰½”Ô–Ú‚©i0‚©‚çj */
+	if(cnt > 5) return 0.6;
+	double tmp = 0.4;
+	while(cnt--){
+		tmp *= 0.7;
+	}
+	return 0.6+tmp;
+#endif
 }
 
 void CTyping::drawGauge(bool isResult){
@@ -2423,19 +2486,38 @@ void CTyping::drawGauge(bool isResult){
 	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
 	
 	for(int i=0; i<GAUGE_COUNT; i++){
+		int x0 = X_GAUGE + W_GAUGE_SEGMENT * i;
+		int x1 = x0 + W_GAUGE_SEGMENT;
+		int color = getDrawGaugeColor(i, cnt);
+		double alpha = getDrawGaugeAlpha(i, cnt);
 		if(i<cnt){
-			SetDrawBlendMode(DX_BLENDMODE_ALPHA, 48);	/* •s“§–¾‚³3/16 */
+			/* ‚ ‚Ó‚ê‚éŒõ‚ğ•\Œ» */
+
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(48*alpha));	/* •s“§–¾‚³3/16”{ */
 			/*
-			DrawBox(X_GAUGE + W_GAUGE_SEGMENT * i, y0, X_GAUGE + W_GAUGE_SEGMENT * (i+1), y1, 
-				getDrawGaugeColor(i, cnt), TRUE);
+			if(i==cnt-1){
+				DrawBox(x0-2, y0, x1+2, y1, 
+					color, TRUE);
+			}
 			*/
-			DrawBox(X_GAUGE + W_GAUGE_SEGMENT * i +1, y0 -1, X_GAUGE + W_GAUGE_SEGMENT * (i+1) -1, y1 +1, 
-				getDrawGaugeColor(i, cnt), TRUE);
-			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+			DrawBox(x0 +1, y0 -1, x1 -1, y1 +1, 
+				color, TRUE);
 		}
-		DrawBox(X_GAUGE + W_GAUGE_SEGMENT * i +1, y0, X_GAUGE + W_GAUGE_SEGMENT * (i+1) -1, y1, 
-			getDrawGaugeColor(i, cnt), TRUE);
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255*alpha));
+		DrawBox(x0 +1, y0, x1 -1, y1, 
+			color, TRUE);
 	}
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+}
+
+void CTyping::drawElapsedTime(double time){
+	time /= m_timeLength;	/* Š„‡‚É’¼‚· */
+	if(time > 1.0) time = 1.0;	/* ’´‚¦‚Ä‚¢‚½‚ç‘Å‚¿Ø‚é */
+	int pos = (int)(W_TIME*time);
+	DrawBox(X_TIME, Y_TIME, X_TIME+pos, Y_TIME+H_TIME,
+		COLOR_TIME, TRUE);
+	DrawBox(X_TIME+pos -3, Y_TIME, X_TIME+pos+ 3, Y_TIME+H_TIME,
+		COLOR_TIME2, TRUE);
 }
 
 /* ------------------------------------------------------------ */
@@ -2808,6 +2890,8 @@ void CTyping::draw(){
 	drawTypeBuffer(time);
 	
 	drawGauge(false);
+
+	drawElapsedTime(time);
 	
 	m_statGauge.draw();
 	
@@ -2835,7 +2919,7 @@ void CTyping::draw(){
 	m_effect1.draw(time);	/* ƒL[“ü—ÍƒGƒtƒFƒNƒg */
 	
 	if(m_phase == PHASE_FADEOUT){	/* ƒtƒF[ƒhƒAƒEƒg */
-		double xTime = (time - m_timeLength) / SEC_FADEOUT;
+		double xTime = (time - m_timeFinished) / SEC_FADEOUT;
 		if(xTime >= 1.0){
 			xTime = 1.0;
 		}
@@ -3293,12 +3377,14 @@ private:
 	static int m_fontHandleNormal;
 	static int m_fontHandleTitle;
 	static int m_fontHandleRanking;
+	static int m_fontHandleAchievement;
 };
 
 int MusicInfo::m_count = 0;
 int MusicInfo::m_fontHandleNormal;
 int MusicInfo::m_fontHandleTitle;
 int MusicInfo::m_fontHandleRanking;
+int MusicInfo::m_fontHandleAchievement;
 
 MusicInfo::MusicInfo(){
 //printfDx("%d++ ", m_count);
@@ -3333,15 +3419,18 @@ void MusicInfo::readRanking(){
 	m_ranking.close();
 }
 
-#define X_TITLE 30
+#define X_TITLE 40
 #define Y_TITLE (30 - 30/2)
 #define X_NUM (W_WINDOW - 25)
 #define Y_NUM (60-44)
 #define Y_ARTIST Y_NUM
-#define X_LEVEL (W_WINDOW - 280)
+#define X_LEVEL (W_WINDOW - 270)
 #define Y_LEVEL (60-22)
 #define X_F_AUTHOR (W_WINDOW - 30)
 #define Y_F_AUTHOR Y_LEVEL
+
+#define X_ACHIEVEMENT (X_TITLE - 25)
+#define Y_ACHIEVEMENT (30 - 24/2)
 
 void MusicInfo::draw(int y, int brightness){	/* ‹Èî•ñ‚ğy‚©‚ç‚‚³60‚Å•`‚­ */
 	int color = GetColor(brightness, brightness, brightness);
@@ -3409,6 +3498,31 @@ void MusicInfo::draw(int y, int brightness){	/* ‹Èî•ñ‚ğy‚©‚ç‚‚³60‚Å•`‚­ */
 				GetColor(brightness, brightness, 0), m_fontHandleNormal);
 		}
 	}
+
+	/* ’B¬“x */
+	{
+		int achievement = m_ranking.getScoreLevel();
+		switch(achievement){
+		case SCORE_NOT_PLAYED:
+			break;
+		case SCORE_NOT_FULL_COMBO:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "œ",
+				GetColor(brightness/4, brightness/4, brightness/4), m_fontHandleAchievement);
+			break;
+		case SCORE_FULL_COMBO:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "š",
+				GetColor(0, brightness/2, brightness), m_fontHandleAchievement);
+			break;
+		case SCORE_FULL_GOOD:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "š",
+				GetColor(0, brightness, 0), m_fontHandleAchievement);
+			break;
+		case SCORE_PERFECT:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "š",
+				GetColor(brightness, brightness, 0), m_fontHandleAchievement);
+			break;
+		}
+	}
 	
 	/* ƒ^ƒCƒgƒ‹iÅŒã‚É‘‚­j */
 	DrawStringToHandle(X_TITLE, y + Y_TITLE, m_title, color, m_fontHandleTitle);
@@ -3445,12 +3559,14 @@ void MusicInfo::createFont(){
 	m_fontHandleNormal = CreateFontToHandle("‚l‚r ƒSƒVƒbƒN", 16, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleTitle = CreateFontToHandle("‚l‚r –¾’©", 30, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleRanking = CreateFontToHandle(NULL, 16, 2);
+	m_fontHandleAchievement = CreateFontToHandle("‚l‚r ƒSƒVƒbƒN", 24, 3, DX_FONTTYPE_ANTIALIASING);
 }
 
 void MusicInfo::deleteFont(){	/* ƒtƒHƒ“ƒg‚ğíœ */
 	DeleteFontToHandle(m_fontHandleNormal);
 	DeleteFontToHandle(m_fontHandleTitle);
 	DeleteFontToHandle(m_fontHandleRanking);
+	DeleteFontToHandle(m_fontHandleAchievement);
 }
 
 /* ============================================================ */
@@ -3508,7 +3624,7 @@ public:
 	void right();
 	
 	void find(const char *buf);
-	void DrawMainInfo::findNext();
+	void findNext();
 	void randomSelect();
 };
 
@@ -4122,7 +4238,7 @@ void drawTitle(int fontHandleTitle, int fontHandleCopyright, int fontHandleInfo,
 			GetColor(255, 255, 255), fontHandleTitle, GetColor(170, 170, 170));
 	}
 	{
-		const char *strCopyright = "(c)2007 tos";
+		const char *strCopyright = "(c)2007-2008 tos";
 		int strWidth = GetDrawStringWidthToHandle(strCopyright, strlen(strCopyright), fontHandleCopyright);
 		DrawStringToHandle(W_WINDOW - 10 - strWidth, H_WINDOW - 10 - 12, strCopyright,
 			GetColor(255, 255, 255), fontHandleCopyright);
