@@ -4,7 +4,7 @@
 #include "utchallenge.h"
 #include "ututil.h"
 
-#define RANKING_FILE_VERSION 3
+#define RANKING_FILE_VERSION 4
 
 #define RANKING_LEN 20
 /* ランキングに記録する順位が何位までか */
@@ -12,6 +12,21 @@
 #define RANKING_DRAW_LEN 5
 /* 何位ずつランキングを表示するか */
 /* RANKING_LEN の約数だと表示に無駄がない */
+
+enum{
+	//SCORE_NOT_PLAYED = 0x0000,
+	SCORE_NO_DATA = 0x0000,	/* フルコンボか以外はスコアから読み取れないため */
+	SCORE_FAILED = 0x0100,
+	SCORE_RED_ZONE = 0x0200,
+	SCORE_YELLOW_ZONE = 0x0240,
+	SCORE_BLUE_ZONE = 0x0280,
+	SCORE_CLEAR = 0x0300,
+	SCORE_FULL_COMBO = 0x0500,
+	SCORE_FULL_GOOD = 0x0600,
+	SCORE_PERFECT = 0x0700,
+};
+/* クリアの度合い */
+/* ランキングファイルに書き込むため、適当に変更しない */
 
 #define H_RANKING1 60
 /* 1位のみを描画するときの幅 */
@@ -30,6 +45,8 @@ public:
 	void init();
 	void read(FILE *fp, int version);
 	void write(FILE *fp)const;
+
+	int getLevel() const;
 	
 	void draw(int x, int y, int n, int fontHandle)const;
 	
@@ -149,6 +166,13 @@ void CScore::write(FILE *fp)const{
 	writeInt(m_date, fp);
 }
 
+int CScore::getLevel() const{
+	if(m_comboMax != -1) return SCORE_NO_DATA;
+	if(m_count[2] != 0) return SCORE_FULL_COMBO;
+	if(m_count[1] != 0) return SCORE_FULL_GOOD;
+	return SCORE_PERFECT;
+}
+
 void CScore::draw(int x, int y, int n, int fontHandle)const{
 	char buf[256];
 	int color;
@@ -215,7 +239,7 @@ class CRanking{
 public:
 	CRanking();
 	~CRanking();
-	int update(const CScore &score, bool f_checkDate, bool f_checkChallenge);
+	int update(const CScore &score, int achievement, bool f_checkDate, bool f_checkChallenge);
 		/* 日付が異なったら異なるとみなすか、チャレンジが異なったら異なるとみなすか */
 	void addPlayTime(double playTime);
 	
@@ -223,6 +247,8 @@ public:
 	void close();
 	void read();
 	void write();
+
+	int getScoreLevel() const;
 	
 	void draw(int x, int y, int rankBegin, int rankLen, int fontHandle);
 	void drawPlayData(int x, int y, int fontHandle);
@@ -231,6 +257,7 @@ private:
 	bool m_isChanged;
 	
 	CScore m_score[RANKING_LEN];
+	int m_scoreLevel;	/* 【achievement に変える予定】 */
 	int m_playCount;
 	int m_playTime;
 };
@@ -245,10 +272,15 @@ CRanking::~CRanking(){
 }
 
 /* ランクインなら順位(0～RANKING_LEN-1)を返す。そうでなければ -1 を返す */
-int CRanking::update(const CScore &score, bool f_checkDate, bool f_checkChallenge){
+int CRanking::update(const CScore &score, int achievement, bool f_checkDate, bool f_checkChallenge){
 	m_isChanged = true;
 	
 	m_playCount++;	/* プレイ回数を更新 */
+
+	{
+		//int achievement = score.getLevel();
+		if(achievement > m_scoreLevel) m_scoreLevel = achievement;
+	}
 	
 	int lastRank = RANKING_LEN - 1;	/* すでに入っている順位（のうち最後のもの） */
 	/* 入っていない場合は、RANKING_LEN - 1が都合が良い */
@@ -334,6 +366,11 @@ void CRanking::read(){
 	if(version > RANKING_FILE_VERSION || version < 0){
 		throw "新しいバージョンのランキングファイルです。プログラムを更新してください。";
 	}
+	if(version >= 4){
+		readInt(m_scoreLevel, m_fp);
+	}else{
+		m_scoreLevel = SCORE_NO_DATA;
+	}
 	if(version >= 3){
 		readInt(m_playCount, m_fp);
 		readInt(m_playTime, m_fp);
@@ -341,9 +378,17 @@ void CRanking::read(){
 		m_playCount = 0;
 		m_playTime = 0;
 	}
+	
 	for(int i=0; i<RANKING_LEN; i++){
 		m_score[i].read(m_fp, version);
 	}
+	if(version < 4){
+		for(int i=0; i<RANKING_LEN; i++){
+			int l = m_score->getLevel();
+			if(l > m_scoreLevel) m_scoreLevel = l;
+		}
+	}
+
 	rewind(m_fp);
 	return;
 }
@@ -360,6 +405,8 @@ void CRanking::write(){
 	rewind(m_fp);
 	writeInt(RANKING_FILE_VERSION, m_fp);
 	
+	writeInt(m_scoreLevel, m_fp);
+
 	writeInt(m_playCount, m_fp);
 	writeInt(m_playTime, m_fp);
 	
@@ -367,6 +414,10 @@ void CRanking::write(){
 		m_score[i].write(m_fp);
 	}
 	rewind(m_fp);
+}
+
+int CRanking::getScoreLevel() const{
+	return m_scoreLevel;
 }
 
 /* rankBeginからrankLen位分表示 */
