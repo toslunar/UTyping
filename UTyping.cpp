@@ -39,6 +39,11 @@ using namespace std;
 #define COLOR_TIME GetColor(64, 192, 255)
 #define COLOR_TIME2 GetColor(192, 192, 192)
 
+#define COLOR_RED_ZONE GetColor(255, 32, 0)
+#define COLOR_YELLOW_ZONE GetColor(224, 255, 0)
+#define COLOR_BLUE_ZONE GetColor(0, 64, 255)
+#define COLOR_CLEAR_ZONE GetColor(255, 255, 255)
+
 #define SEC_EXCELLENT 0.02
 #define SEC_GOOD 0.05
 #define SEC_FAIR 0.10
@@ -54,6 +59,18 @@ using namespace std;
 
 #define SCORE_TYPING 500
 /* タイピングで1文字確定させるごとに（1バイト文字、2バイト文字を問わない） */
+
+#define GAUGE_COUNT 100
+#define GAUGE_RED_ZONE 15
+#define GAUGE_YELLOW_ZONE 45
+#define GAUGE_CLEAR_ZONE 75
+/*
+failed:0
+red   :(0,RED]
+yellow:(RED,YELLOW]
+blue  :(YELLOW,CLEAR]
+clear :(CLEAR,COUNT]
+*/
 
 #define NAME_LEN 16
 #define TYPE_BUFFER_LEN NAME_LEN
@@ -83,7 +100,6 @@ using namespace std;
 #define Y_STAT_GAUGE 10
 #define H_STAT_GAUGE 40
 
-#define GAUGE_COUNT 96
 #define X_GAUGE 90
 //#define W_GAUGE 500
 #define W_GAUGE_SEGMENT 5
@@ -155,6 +171,14 @@ ID_GOOD,
 ID_FAIR,
 ID_POOR,
 ID_PASS,
+};
+
+enum{
+ID_FAILED_ZONE,
+ID_RED_ZONE,
+ID_YELLOW_ZONE,
+ID_BLUE_ZONE,
+ID_CLEAR_ZONE,
 };
 
 enum{
@@ -1031,6 +1055,7 @@ private:
 	void scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int ID_accuracy);
 	
 	void initGauge();
+	int getGaugeZone();
 	void updateGauge();
 	int getDrawGaugeColor(int pos, int cnt);
 	double getDrawGaugeAlpha(int pos, int cnt);
@@ -1378,6 +1403,10 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 		}
 	}
 	fclose(fp);
+
+	if(m_countAll == 0){
+		throw "[譜面] 打つ歌詞がありません。";
+	}
 	
 	/* 打つ歌詞の番兵として最後に' ',INFTYを追加しておく */
 	addNullLyrics(INFTY, false);
@@ -1987,7 +2016,24 @@ void CTyping::phase(int phaseNum){
 			CScore score(m_typeBuffer, m_score, m_scoreAccuracy, m_scoreTyping,
 				m_countExcellent, m_countGood, m_countFair, m_countPoor, m_countPass,
 				m_countAll, m_comboMax, m_challenge);
-			m_rank = m_ranking.update(score, g_config.f_rankingCheckDate, g_config.f_rankingCheckChallenge);
+			int achievement = score.getLevel();
+			if(achievement == SCORE_NO_DATA){	/* ゲージに依存する達成度 */
+				switch(getGaugeZone()){
+				case ID_FAILED_ZONE:
+					achievement = SCORE_FAILED; break;
+				case ID_RED_ZONE:
+					achievement = SCORE_RED_ZONE; break;
+				case ID_YELLOW_ZONE:
+					achievement = SCORE_YELLOW_ZONE; break;
+				case ID_BLUE_ZONE:
+					achievement = SCORE_BLUE_ZONE; break;
+				case ID_CLEAR_ZONE:
+					achievement = SCORE_CLEAR; break;
+				}
+			}
+
+			m_rank = m_ranking.update(score, achievement, 
+					g_config.f_rankingCheckDate, g_config.f_rankingCheckChallenge);
 			m_ranking.write();
 			if(m_rank < 0){
 				phase(PHASE_EXIT);	/* ランクインしなければ終了 */
@@ -2309,55 +2355,102 @@ void CTyping::scoreAccuracySub(vector<LyricsBlock>::iterator lyricsPosition, int
 		m_statGauge.inc(ID_accuracy);
 	}
 	
+	int ID_gaugeZone = getGaugeZone();
 	switch(ID_accuracy){
 	case ID_EXCELLENT:
-		m_gauge += 7;
-		if(m_gauge > m_gaugeMax)m_gauge = m_gaugeMax;
-		m_gaugeNewCount++;
+		switch(ID_gaugeZone){
+		case ID_RED_ZONE:
+			m_gauge += 200; break;
+		case ID_YELLOW_ZONE:
+			m_gauge += 200; break;
+		case ID_BLUE_ZONE:
+			m_gauge += 150; break;
+		case ID_CLEAR_ZONE:
+			m_gauge += 100; break;
+		}
 		break;
 	case ID_GOOD:
-		m_gauge += 4;
-		if(m_gauge > m_gaugeMax)m_gauge = m_gaugeMax;
-		m_gaugeNewCount++;
+		switch(ID_gaugeZone){
+		case ID_RED_ZONE:
+			m_gauge += 100; break;
+		case ID_YELLOW_ZONE:
+			m_gauge += 100; break;
+		case ID_BLUE_ZONE:
+			m_gauge += 75; break;
+		case ID_CLEAR_ZONE:
+			m_gauge += 50; break;
+		}
 		break;
 	case ID_FAIR:
-		m_gauge += 1;
-		if(m_gauge > m_gaugeMax)m_gauge = m_gaugeMax;
-		m_gaugeNewCount++;
+		switch(ID_gaugeZone){
+		case ID_RED_ZONE:
+			m_gauge += 0; break;
+		//case ID_YELLOW_ZONE:
+		//case ID_BLUE_ZONE:
+		//case ID_CLEAR_ZONE:
+		//	m_gauge += 0; break;
+		}
 		break;
 	case ID_POOR:
-		m_gauge -= 3;
-		if(m_gauge <= 0){
-			m_gauge = 0;
-			if(g_config.f_failByGauge){
-				m_flagFailed = true;
-			}
+		switch(ID_gaugeZone){
+		case ID_RED_ZONE:
+			m_gauge -= 50; break;
+		case ID_YELLOW_ZONE:
+			m_gauge -= 100; break;
+		case ID_BLUE_ZONE:
+			m_gauge -= 150; break;
+		case ID_CLEAR_ZONE:
+			m_gauge -= 150 + m_countAll; break;
 		}
-		m_gaugeNewCount++;
 		break;
+	}
+	m_gaugeNewCount++;
+
+	if(m_gauge > m_gaugeMax)m_gauge = m_gaugeMax;
+	if(m_gauge <= 0){
+		m_gauge = 0;
+		if(g_config.f_failByGauge){
+			m_flagFailed = true;
+		}
 	}
 }
 
 /* ------------------------------------------------------------ */
 
 /*
-Excellent	+7
-Good		+4
-Fair		+1
-Poor		-3
-Passed		-5
-非打ち切り	-4(-2だったが、厳しくした)
+		red	yellow	blue		clear
+Excellent	+200	+200	+150		+100
+Good		+100	+100	+ 75		+ 50
+Fair		+  0	+  0	+  0		+  0
+Poor		- 50	-100	-150		-150-n
+Passed		-100	-150	-200		-200-n
+非打ち切り	- 50	-100	-100-n/2	-100-n
 
-2nからスタート
-値の範囲は 0 - 8n
+25nからスタート
+値の範囲は 0 - 100n
+表示は0-100、切り上げ
 */
 
 void CTyping::initGauge(){
-	m_gauge = m_countAll * 2;
-	m_gaugeMax = m_countAll * 8;
+	m_gauge = m_countAll * 25;
+	m_gaugeMax = m_countAll * GAUGE_COUNT;
 	m_gaugeLastCount = 0;
 	m_gaugeNewCount = 0;
 	m_gaugeLastLost = 0;
+}
+
+int CTyping::getGaugeZone(){
+	if(m_gauge == 0){
+		return ID_FAILED_ZONE;
+	}else if(m_gauge <= m_countAll * GAUGE_RED_ZONE){
+		return ID_RED_ZONE;
+	}else if(m_gauge <= m_countAll * GAUGE_YELLOW_ZONE){
+		return ID_YELLOW_ZONE;
+	}else if(m_gauge <= m_countAll * GAUGE_CLEAR_ZONE){
+		return ID_BLUE_ZONE;
+	}else{
+		return ID_CLEAR_ZONE;
+	}
 }
 
 /* 【 この関数は得点を得るときと、m_lyricsPositionが変わったときごとに呼ばれる必要がある 】 */
@@ -2368,12 +2461,27 @@ void CTyping::updateGauge(){
 		
 		if(count > m_gaugeLastCount){
 			/* count が進んだら打ち逃しと通過を判定 */
-			int lost = count - m_countClear;	/* 打ちきれなかった個数 */
-			m_gauge -= (lost - m_gaugeLastLost) * 4;
-			/* 打ちきれないと -4（Passの減点と重複する） */
-			m_gaugeLastLost = lost;
+			{	/* 非打ち切りを減点 */
+				int lost = count - m_countClear;	/* 打ちきれなかった個数 */
+				int t = lost - m_gaugeLastLost;	/* 今回処理する分 */
+				m_gaugeLastLost = lost;
+				while(t-- > 0){
+					switch(getGaugeZone()){
+					case ID_RED_ZONE:
+						m_gauge -= 50; break;
+					case ID_YELLOW_ZONE:
+						m_gauge -= 100; break;
+					case ID_BLUE_ZONE:
+						m_gauge -= 100 + (m_countAll/2); break;
+					case ID_CLEAR_ZONE:
+						m_gauge -= 100 + m_countAll; break;
+					}
+
+				}
+				/* 打ちきれないと減点（以下のPassの減点と重複する） */
+			}
 			
-			{
+			{	/* 通過を減点 */
 				int t = count - m_gaugeLastCount;
 				m_gaugeLastCount = count;
 				
@@ -2381,8 +2489,18 @@ void CTyping::updateGauge(){
 				if(t < 0){	/* countが進む前に打てることがあるが、これは後回しする */
 					m_gaugeNewCount = -t;
 				}else{
-					m_gauge -= t * 5;
-					/* Passは-5 */
+					while(t-- > 0){
+						switch(getGaugeZone()){
+						case ID_RED_ZONE:
+							m_gauge -= 100; break;
+						case ID_YELLOW_ZONE:
+							m_gauge -= 150; break;
+						case ID_BLUE_ZONE:
+							m_gauge -= 200; break;
+						case ID_CLEAR_ZONE:
+							m_gauge -= 200 + m_countAll; break;
+						}
+					}
 					m_gaugeNewCount = 0;
 				}
 			}
@@ -2397,12 +2515,13 @@ void CTyping::updateGauge(){
 	}
 }
 
+
 int CTyping::getDrawGaugeColor(int pos, int cnt){
-	if(pos < 12){
+	if(pos < GAUGE_RED_ZONE){
 		return GetColor(255, 32, 0);
-	}else if(pos < 36){
+	}else if(pos < GAUGE_YELLOW_ZONE){
 		return GetColor(224, 255, 0);
-	}else if(pos < 72){
+	}else if(pos < GAUGE_CLEAR_ZONE){
 		return GetColor(0, 64, 255);
 	}else{
 		return GetColor(255, 255, 255);
@@ -2462,9 +2581,9 @@ double CTyping::getDrawGaugeAlpha(int pos, int cnt){
 }
 
 void CTyping::drawGauge(bool isResult){
-	if(m_flagFailed){	/* 【ゲージ0で死んだ後に回復したりすることがないよう、描画時に制御】 */
-		m_gauge = 0;
-	}
+	//if(m_flagFailed){	/* 【ゲージ0で死んだ後に回復したりすることがないようにする】 */
+		//m_gauge = 0;
+	//}
 	
 	int y0, y1;
 	
@@ -2475,8 +2594,10 @@ void CTyping::drawGauge(bool isResult){
 	}
 	y1 = y0 + H_GAUGE;
 	
-	int cnt = (GAUGE_COUNT * m_gauge + m_gaugeMax-1)/ m_gaugeMax;
+	//int cnt = (GAUGE_COUNT * m_gauge + m_gaugeMax-1)/ m_gaugeMax;
 		/* m_gauge / m_gaugeMax を 0 - GAUGE_COUNTにする（切り上げ） */
+		/* GAUGE_COUNT * 100(==GAUGE_COUNT) * m_countAll は、音符の数が10万個以下ならintに入る　*/
+	int cnt = (m_gauge + m_countAll - 1)/ m_countAll;
 	
 	/* もともと濃い灰色で描画しないのは tan などへの配慮 */
 	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 128);	/* 不透明さ1/2 */
@@ -3503,23 +3624,47 @@ void MusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 	{
 		int achievement = m_ranking.getScoreLevel();
 		switch(achievement){
-		case SCORE_NOT_PLAYED:
+		case SCORE_NO_DATA:
 			break;
-		case SCORE_NOT_FULL_COMBO:
+		case SCORE_FAILED:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
-				GetColor(brightness/4, brightness/4, brightness/4), m_fontHandleAchievement);
+				GetColor(brightness/3, brightness/3, brightness/3), m_fontHandleAchievement,
+				GetColor(brightness/4, brightness/4, brightness/4));
+			break;
+		case SCORE_RED_ZONE:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
+				GetColor(brightness*2/3, brightness/12, 0), m_fontHandleAchievement,
+				GetColor(brightness/2, brightness/16, 0));
+			break;
+		case SCORE_YELLOW_ZONE:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
+				GetColor(brightness*7/12, brightness*2/3, 0), m_fontHandleAchievement,
+				GetColor(brightness*7/16, brightness/2, 0));
+			break;
+		case SCORE_BLUE_ZONE:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
+				GetColor(0, brightness/6, brightness*2/3), m_fontHandleAchievement,
+				GetColor(0, brightness/8, brightness/2));
+			break;
+		case SCORE_CLEAR:
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "◆",
+				GetColor(brightness*2/3, brightness*2/3, brightness*2/3), m_fontHandleAchievement,
+				GetColor(brightness/2, brightness/2, brightness/2));
 			break;
 		case SCORE_FULL_COMBO:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(0, brightness/2, brightness), m_fontHandleAchievement);
+				GetColor(brightness/4, brightness*5/8, brightness), m_fontHandleAchievement,
+				GetColor(0, brightness/2, brightness));
 			break;
 		case SCORE_FULL_GOOD:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(0, brightness, 0), m_fontHandleAchievement);
+				GetColor(brightness/4, brightness, brightness/4), m_fontHandleAchievement,
+				GetColor(0, brightness, 0));
 			break;
 		case SCORE_PERFECT:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(brightness, brightness, 0), m_fontHandleAchievement);
+				GetColor(brightness, brightness, brightness/4), m_fontHandleAchievement,
+				GetColor(brightness, brightness, 0));
 			break;
 		}
 	}
@@ -3559,7 +3704,7 @@ void MusicInfo::createFont(){
 	m_fontHandleNormal = CreateFontToHandle("ＭＳ ゴシック", 16, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleTitle = CreateFontToHandle("ＭＳ 明朝", 30, 3, DX_FONTTYPE_ANTIALIASING);
 	m_fontHandleRanking = CreateFontToHandle(NULL, 16, 2);
-	m_fontHandleAchievement = CreateFontToHandle("ＭＳ ゴシック", 24, 3, DX_FONTTYPE_ANTIALIASING);
+	m_fontHandleAchievement = CreateFontToHandle("ＭＳ ゴシック", 24, 2, DX_FONTTYPE_ANTIALIASING_EDGE);
 }
 
 void MusicInfo::deleteFont(){	/* フォントを削除 */
@@ -3798,7 +3943,7 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 		+ (int)floor(dInfo.drawPosY + 0.5);
 	SetDrawArea(10, 0, W_WINDOW-10, 360);	/* 描画範囲を制限 */
 	{
-		DrawBox(10, dy - MUSIC_INFO_HEIGHT, W_WINDOW - 10, dy + dInfo.addHeight[0], GetColor(32, 32, 64), TRUE);
+		DrawBox(10, dy - MUSIC_INFO_HEIGHT, W_WINDOW - 10, dy + dInfo.addHeight[0], GetColor(16, 16, 32), TRUE);
 		dInfo.musicInfoItr->draw(dy - MUSIC_INFO_HEIGHT, 255);	/* タイトルなど表示 */
 		DrawLine(40, dy, W_WINDOW - 40, dy, GetColor(64, 64, 64));
 		
@@ -3841,7 +3986,7 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 		}
 	}
 	SetDrawArea(0, 0, W_WINDOW, H_WINDOW);	/* 描画範囲を元に戻す */
-	DrawBox(0, 360, W_WINDOW, H_WINDOW - 25, GetColor(32, 32, 32), TRUE);
+	DrawBox(0, 360, W_WINDOW, H_WINDOW - 25, GetColor(24, 24, 24), TRUE);
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	
 	if(inputHandle == -1){	/* 検索時以外 */
@@ -3902,7 +4047,7 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 			color = GetColor(128, 128, 128);
 		}
 		int width = GetDrawStringWidthToHandle(buf, strlen(buf), fontHandleDefault);
-		DrawBox(W_WINDOW - 20 - width, H_WINDOW - 25, W_WINDOW, H_WINDOW, GetColor(32, 32, 64), TRUE);
+		DrawBox(W_WINDOW - 20 - width, H_WINDOW - 25, W_WINDOW, H_WINDOW, GetColor(16, 16, 32), TRUE);
 		DrawStringToHandle(W_WINDOW - 10 - width, H_WINDOW - 20, buf, color, fontHandleDefault);
 	}
 	
