@@ -442,6 +442,51 @@ void CEffect1::draw(double time){
 }
 
 /* ============================================================ */
+#if 0
+#define CEFFECT2_SEC_CLEAR 0.2
+#define CEFFECT2_ALPHA 24
+
+class CEffect2{
+public:
+	void insert(int x, int y, int r, int color, double time);
+	void clear();
+	void draw(double time);
+private:
+	struct Data{
+		int x, y, r;
+		int color;
+		double time;
+	};
+	deque<Data> m_deq;
+};
+
+void CEffect2::insert(int x, int y, int r, int color, double time){
+	Data d;
+	d.x = x; d.y = y; d.r = r;
+	d.color = color; d.time = time;
+	m_deq.push_back(d);
+}
+
+void CEffect2::clear(){
+	m_deq.clear();
+}
+
+void CEffect2::draw(double time){
+	while(!m_deq.empty() &&
+			time - m_deq.front().time >= CEFFECT2_SEC_CLEAR){
+		m_deq.pop_front();
+	}
+	for(deque<Data>::iterator itr = m_deq.begin(); itr != m_deq.end(); itr++){
+		double t = (time - itr->time) / CEFFECT2_SEC_CLEAR;
+		int alpha = (int)(CEFFECT2_ALPHA * (1-t*t));
+		int r = (int)(itr->r * (1.0+t*2.5*(1.0-t)*(1.0-t)));
+		SetDrawBlendMode(DX_BLENDMODE_ALPHA, alpha);
+		DrawCircle(itr->x, itr->y, r, itr->color, TRUE);
+	}
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+}
+#endif
+/* ============================================================ */
 
 /* 後ろに文字が1文字ずつ追加され、前が消えていく文字列を対象にしたEffect */
 /* 一応、文字列が長さを増やさず変化する可能性にも対応 */
@@ -1023,6 +1068,7 @@ private:
 	void keyboard(char ch, double timeCount);
 	void keyboard_1(char ch, double time);
 	void keyboardEffect(char ch, double time);
+	//void circleEffect(double time);
 	void updateLyricsBuffer(double time);
 	void clearLyricsBuffer(vector<LyricsBlock>::iterator lyricsPos);
 	
@@ -1147,6 +1193,8 @@ private:
 	int m_scoreDraw;	/* 表示するスコア（の1/10）、本当のスコアと比べ遅延がある */
 	
 	CEffect1 m_effect1;	/* キー入力エフェクト */
+
+	//CEffect2 m_effect2;
 	
 	int m_gauge;	/* いわゆる魂ゲージみたいなもの */
 		/* 太鼓の達人に影響を受けたわけじゃないんだからねっ */
@@ -1485,6 +1533,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 	m_scoreDraw = 0;
 	
 	m_effect1.clear();	/* キー入力エフェクトを初期化 */
+
+	//m_effect2.clear();
 	
 	initGauge();	/* ゲージ初期化 */
 	
@@ -1709,6 +1759,11 @@ void CTyping::keyboardEffect(char ch, double time){
 	m_typeBufferEffect.update(m_typeBuffer, m_typeBufferLen, time);
 	return;
 }
+#if 0
+void CTyping::circleEffect(double time){
+	m_effect2.insert(X_CIRCLE, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), time);
+}
+#endif
 
 void CTyping::updateLyricsBuffer(double time){
 	/* m_lyricsPositionEndの更新とそれに伴うエフェクトの情報の追加 */
@@ -2250,6 +2305,8 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 	/* タイミングの採点対象ではない、または、もう採点された */
 		return;
 	}
+
+	//circleEffect(time);
 	
 	if(!f_successive){
 		m_combo = 0;
@@ -2279,11 +2336,6 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 		color = COLOR_EXCELLENT;
 		
 		scoreAccuracySub(lyricsPosition, ID_EXCELLENT);
-		/*
-		(*lyricsPosition).r = 192;
-		(*lyricsPosition).g = 192;
-		(*lyricsPosition).b = 64;
-		*/
 	}else if(timeDiff < SEC_GOOD){
 		score = SCORE_GOOD + scoreCombo;
 		m_countGood++;
@@ -2291,11 +2343,6 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 		color = COLOR_GOOD;
 		
 		scoreAccuracySub(lyricsPosition, ID_GOOD);
-		/*
-		(*lyricsPosition).r = 170;
-		(*lyricsPosition).g = 170;
-		(*lyricsPosition).b = 85;
-		*/
 	}else if(timeDiff < SEC_FAIR){
 		score = SCORE_FAIR + scoreCombo;
 		m_countFair++;
@@ -2303,11 +2350,6 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 		color = COLOR_FAIR;
 		
 		scoreAccuracySub(lyricsPosition, ID_FAIR);
-		/*
-		(*lyricsPosition).r = 128;
-		(*lyricsPosition).g = 128;
-		(*lyricsPosition).b = 128;
-		*/
 	}else{
 		score = SCORE_POOR;
 		m_countPoor++;
@@ -2316,11 +2358,6 @@ void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successiv
 		color = COLOR_POOR;
 		
 		scoreAccuracySub(lyricsPosition, ID_POOR);
-		/*
-		(*lyricsPosition).r = 85;
-		(*lyricsPosition).g = 85;
-		(*lyricsPosition).b = 85;
-		*/
 	}
 	if(m_combo > m_comboMax){	/* コンボ数の最大値を更新 */
 		m_comboMax = m_combo;
@@ -2800,6 +2837,14 @@ void CTyping::draw(){
 		}
 	}
 	
+	//m_effect2.draw(time);
+	/* 判定位置の円（の内部）*/
+	/*
+	SetDrawBlendMode(DX_BLENDMODE_ALPHA, 32);
+	DrawCircle(X_CIRCLE, Y_CIRCLE, R_CIRCLE, GetColor(255, 255, 255), TRUE);
+	SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+	*/
+	
 	if(!m_challenge.test(CHALLENGE_STEALTH)){	/* Stealthなら表示しない */
 		/* 円と、円の下の歌詞を表示 */
 		
@@ -2882,6 +2927,7 @@ void CTyping::draw(){
 			}
 			
 			int Color;
+#if 0
 			if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
 				Color = GetColor(255, 0, 0);
 			}else{
@@ -2899,6 +2945,27 @@ void CTyping::draw(){
 					Color = GetColor(0, 0, 255);
 				}
 			}
+#endif
+			if((*i).isScoringTarget){	/* まだタイミング点をもらってない */
+				Color = GetColor(255, 0, 0);
+			}else{
+				double sTime = (time - (*i).scoringTime) / 0.15;
+				if(sTime < 1.0){
+					if(sTime < 0.0){
+						sTime = 0.0;	/* 時刻が調整されうるので念のため */
+					}
+					
+					double r = (1.0-sTime);
+					r *= r*r;
+					Color = GetColor((int)(255*r),
+							(int)(85*(1.0-r)),
+							(int)(170*(1.0-r)) );
+					
+				}else{
+					Color = GetColor(0, 85, 170);
+				}
+			}
+
 			{
 				int rCircle = R_CIRCLE;
 				if((*i).clearedTime >= 0.0){
