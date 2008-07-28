@@ -18,10 +18,6 @@ using namespace std;
 
 /* ============================================================ */
 
-#include "utuid.h"
-
-/* ============================================================ */
-
 #include "utchallenge.h"
 
 /* ============================================================ */
@@ -299,29 +295,6 @@ int myScreenFlip(){
 		g_check.draw();
 	}
 	return (ret0 == -1 || ret1 == -1) ? -1 : 0;
-}
-
-/* ============================================================ */
-
-/* UTypingUserIDを調べる */
-
-bool checkUTypingUserID(){
-	FILE *fp;
-	fp = fopen("UTyping_ID.txt", "r");
-	if(!fp){
-		throw "UTyping_ID.txt が開けません。";
-	}
-	int ID[4];
-	getUTypingUserID(ID);
-	for(int i=0; i<4; i++){
-		int tmp;
-		fscanf(fp, "%X", &tmp);
-		if(tmp != ID[i]){
-			return false;
-		}
-	}
-	fclose(fp);
-	return true;
 }
 
 /* ============================================================ */
@@ -3694,10 +3667,14 @@ void MusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 		case SCORE_NO_DATA:
 			break;
 		case SCORE_FAILED:
+		case SCORE_RED_ZONE:
+		case SCORE_YELLOW_ZONE:
+		case SCORE_BLUE_ZONE:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
 				GetColor(brightness/3, brightness/3, brightness/3), m_fontHandleAchievement,
 				GetColor(brightness/4, brightness/4, brightness/4));
 			break;
+#if 0
 		case SCORE_RED_ZONE:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
 				GetColor(brightness*2/3, brightness/12, 0), m_fontHandleAchievement,
@@ -3713,10 +3690,11 @@ void MusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 				GetColor(0, brightness/6, brightness*2/3), m_fontHandleAchievement,
 				GetColor(0, brightness/8, brightness/2));
 			break;
+#endif
 		case SCORE_CLEAR:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "◆",
-				GetColor(brightness*2/3, brightness*2/3, brightness*2/3), m_fontHandleAchievement,
-				GetColor(brightness/2, brightness/2, brightness/2));
+				GetColor(brightness, brightness, brightness), m_fontHandleAchievement,
+				GetColor(brightness*3/4, brightness*3/4, brightness*3/4));
 			break;
 		case SCORE_FULL_COMBO:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
@@ -4549,8 +4527,6 @@ void main1(bool &isWindowMode){
 			drawTitle(fontHandleTitle, fontHandleNormal, fontHandleInfo, "Now loading...");
 			myScreenFlip();
 			
-			bool isCorrectID = checkUTypingUserID();
-			
 			int count = readList();
 			
 			if(count == 0){
@@ -4564,23 +4540,18 @@ void main1(bool &isWindowMode){
 				//SetDrawScreen(DX_SCREEN_BACK);
 				//ClearDrawScreen();
 				drawTitle(fontHandleTitle, fontHandleNormal, fontHandleInfo,
-					isCorrectID ? "Press Enter key." : "Wrong UTyping user ID...");
-				if(isCorrectID){
-					DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), fontHandleNormal,
-						"名前を入力してください :");
-					if(nameLen > 0){
-						DrawStringToHandle(60, 400, name, GetColor(255, 255, 255), fontHandleName);
-					}else{
-						DrawStringToHandle(60, 400, "（未設定）", GetColor(128, 128, 128), fontHandleName);
-					}
+					"Press Enter key.");
+				DrawFormatStringToHandle(30, 375, GetColor(255, 255, 255), fontHandleNormal,
+					"名前を入力してください :");
+				if(nameLen > 0){
+					DrawStringToHandle(60, 400, name, GetColor(255, 255, 255), fontHandleName);
+				}else{
+					DrawStringToHandle(60, 400, "（未設定）", GetColor(128, 128, 128), fontHandleName);
 				}
 				myScreenFlip();
 				char ch = GetKeyboardInput();
 				if(ch == 0){
 					continue;
-				}
-				if(!isCorrectID){	/* IDが不正な場合は、どのキーを押しても終了。 */
-					return;
 				}
 				if(ch == CTRL_CODE_TAB){	/* Tabを押すと、Window ←→ FullScreen */
 					isWindowMode = !isWindowMode;	/* isWindowModeを変更して再起動 */
