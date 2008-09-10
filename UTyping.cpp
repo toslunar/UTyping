@@ -1400,8 +1400,8 @@ void CTyping::load(const char *fumenFileName, const char *rankingFileName){
 			if(n < 1){
 				throw "[譜面] 書式が不正です。(/)";
 			}
-			m_timeLength = time;	/* 毎回書き込んで、最後の区切りの位置を取得 */
 			time /= frequencyRate;
+			m_timeLength = time;	/* 毎回書き込んで、最後の区切りの位置を取得 */
 			if(!m_lyricsKanji.empty()){	/* 表示する歌詞が存在している */
 				LyricsKanji &lk = *(m_lyricsKanji.end() - 1);	/* そのなかで最後のものを操作 */
 				if(lk.timeEnd == INFTY){	/* 終了時刻が設定されていなければ、現在に設定 */
