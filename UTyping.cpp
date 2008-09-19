@@ -2092,7 +2092,7 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 		}
 	}
 	
-	vector<Lyrics>::iterator lyricsPos = &m_lyrics[lyricsPosition->lyricsPos()];
+	vector<Lyrics>::iterator lyricsPos = m_lyrics.begin()+lyricsPosition->lyricsPos();
 	
 	typeBuffer[typeBufferLen++] = ch;	/* 打った文字を追加 */
 	/* CheckOnly（打てる入力が存在するか調べる）のときは、\0を追加する。 */
@@ -2117,7 +2117,7 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 			scoreAccuracy(lyricsPos, f_successive, time);
 			
 			lyricsPosition++;
-			vector<Lyrics>::iterator tmpLyricsPos = &m_lyrics[lyricsPosition->lyricsNum];
+			vector<Lyrics>::iterator tmpLyricsPos = m_lyrics.begin()+lyricsPosition->lyricsNum;
 			scoreTyping(lyricsPos, tmpLyricsPos);
 			setTyped(lyricsPos, tmpLyricsPos);
 		}
@@ -2126,7 +2126,7 @@ bool CTyping::input(char ch, char *typeBuffer, int &typeBufferLen,
 			/* 最後から2番目はチェックのみか */
 			/* 最後のfalseは再帰でないことを示す。 */
 		if(ch != '\0' && ret){	/* 実際に打ち、それが入った場合 */
-			lyricsPosition = &m_lyricsBlock[lyricsPos->blockNum];
+			lyricsPosition = m_lyricsBlock.begin()+lyricsPos->blockNum;
 				/* 新しい歌詞の位置に */
 			/* typeBufferが更新されてるから、戻さない */
 		}else{
@@ -2239,8 +2239,8 @@ bool CTyping::input_1(char *typeBuffer, int &typeBufferLen, vector<Lyrics>::iter
 /* ------------------------------------------------------------ */
 
 void CTyping::setTyped(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iterator lyEnd){
-	vector<LyricsBlock>::iterator lyBlockBegin = &m_lyricsBlock[lyBegin->blockNum];
-	vector<LyricsBlock>::iterator lyBlockEnd = &m_lyricsBlock[lyEnd->blockNum];
+	vector<LyricsBlock>::iterator lyBlockBegin = m_lyricsBlock.begin()+lyBegin->blockNum;
+	vector<LyricsBlock>::iterator lyBlockEnd = m_lyricsBlock.begin()+lyEnd->blockNum;
 	/* 打ち始めから打ち終わりより前のBlockはすべて打たれる */
 	for(vector<LyricsBlock>::iterator itr = lyBlockBegin; itr != lyBlockEnd; itr++){
 		itr->nTyped = itr->lyricsLen;
@@ -2273,7 +2273,7 @@ void CTyping::scoreTyping(vector<Lyrics>::iterator lyBegin, vector<Lyrics>::iter
 
 void CTyping::scoreAccuracy(vector<Lyrics>::iterator lyricsPos, bool f_successive, double time){
 	vector<LyricsBlock>::iterator lyricsPosition;
-	lyricsPosition = &m_lyricsBlock[(*lyricsPos).blockNum];
+	lyricsPosition = m_lyricsBlock.begin()+lyricsPos->blockNum;
 	if(!(*lyricsPosition).isScoringTarget){
 	/* タイミングの採点対象ではない、または、もう採点された */
 		return;
@@ -3782,7 +3782,7 @@ vector<MusicInfo>::iterator nextInfo(vector<MusicInfo>::iterator itr){
 }
 
 vector<MusicInfo>::iterator randomInfo(){
-	return &g_infoArray[GetRand(g_infoArray.size() - 1)];
+	return g_infoArray.begin()+GetRand(g_infoArray.size() - 1);
 }
 
 /* ============================================================ */
