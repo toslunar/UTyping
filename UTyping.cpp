@@ -3527,8 +3527,17 @@ public:
 	void drawPlayData(int x, int y);
 	void drawRanking(int x, int y, int rankBegin, int rankLen);
 	
-	bool titleCmp(const char *buf);
+	bool titleFind(const char *buf);
+
+	bool operator < (const MusicInfo& rh) const {
+	  return m_num < rh.m_num;
+	}
+
 	//void renewFont();
+	
+	int getAchievement() const {
+	  return m_ranking.getAchievement();
+	}
 private:
 	void createFont();
 	void deleteFont();
@@ -3662,54 +3671,62 @@ void MusicInfo::draw(int y, int brightness){	/* 曲情報をyから高さ60で描く */
 
 	/* 達成度 */
 	{
-		int achievement = m_ranking.getScoreLevel();
+		int achievement = m_ranking.getAchievement();
+		int b=brightness;
 		switch(achievement){
 		case SCORE_NO_DATA:
 			break;
 		case SCORE_FAILED:
-		case SCORE_RED_ZONE:
-		case SCORE_YELLOW_ZONE:
-		case SCORE_BLUE_ZONE:
-			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
-				GetColor(brightness/3, brightness/3, brightness/3), m_fontHandleAchievement,
-				GetColor(brightness/4, brightness/4, brightness/4));
-			break;
 #if 0
 		case SCORE_RED_ZONE:
-			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
-				GetColor(brightness*2/3, brightness/12, 0), m_fontHandleAchievement,
-				GetColor(brightness/2, brightness/16, 0));
+		case SCORE_YELLOW_ZONE:
+		case SCORE_BLUE_ZONE:
+#endif
+			b=b*b/255;
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "□",
+				GetColor(b/2, b/2, b/2), m_fontHandleAchievement,
+				GetColor(b/3, b/3, b/3));
+			break;
+		case SCORE_RED_ZONE:
+			b=b*b/255;
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "□",
+				GetColor(b, b/8, 0), m_fontHandleAchievement,
+				GetColor(b*2/3, b/12, 0));
 			break;
 		case SCORE_YELLOW_ZONE:
-			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
-				GetColor(brightness*7/12, brightness*2/3, 0), m_fontHandleAchievement,
-				GetColor(brightness*7/16, brightness/2, 0));
+			b=b*b/255;
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "□",
+				GetColor(b*7/8, b, 0), m_fontHandleAchievement,
+				GetColor(b*7/12, b*2/3, 0));
 			break;
 		case SCORE_BLUE_ZONE:
-			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "●",
-				GetColor(0, brightness/6, brightness*2/3), m_fontHandleAchievement,
-				GetColor(0, brightness/8, brightness/2));
+			b=b*b/255;
+			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "□",
+				GetColor(0, b/4, b), m_fontHandleAchievement,
+				GetColor(0, b/6, b*2/3));
 			break;
-#endif
 		case SCORE_CLEAR:
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "◆",
-				GetColor(brightness, brightness, brightness), m_fontHandleAchievement,
-				GetColor(brightness*3/4, brightness*3/4, brightness*3/4));
+				GetColor(b, b, b), m_fontHandleAchievement,
+				GetColor(b*3/4, b*3/4, b*3/4));
 			break;
 		case SCORE_FULL_COMBO:
+			b=(b+256)/2;
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(brightness/4, brightness*5/8, brightness), m_fontHandleAchievement,
-				GetColor(0, brightness/2, brightness));
+				GetColor(b/4, b*5/8, b), m_fontHandleAchievement,
+				GetColor(0, b/2, b));
 			break;
 		case SCORE_FULL_GOOD:
+			b=(b+256)/2;
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(brightness/4, brightness, brightness/4), m_fontHandleAchievement,
-				GetColor(0, brightness, 0));
+				GetColor(b/4, b, b/4), m_fontHandleAchievement,
+				GetColor(0, b, 0));
 			break;
 		case SCORE_PERFECT:
+			b=(b+256)/2;
 			DrawStringToHandle(X_ACHIEVEMENT, y + Y_ACHIEVEMENT, "★",
-				GetColor(brightness, brightness, brightness/4), m_fontHandleAchievement,
-				GetColor(brightness, brightness, 0));
+				GetColor(b, b, b/4), m_fontHandleAchievement,
+				GetColor(b, b, 0));
 			break;
 		}
 	}
@@ -3739,8 +3756,8 @@ void MusicInfo::renewFont(){
 }
 */
 
-bool MusicInfo::titleCmp(const char *buf){
-/* 【 関数名頭悪い。要修正 】 */
+bool MusicInfo::titleFind(const char *buf){
+/* 【 前は titleCmp だった。関数名これでいいのか？ 】 */
 /* タイトルの一部と一致するかを返す */
 	return isSubstr(buf, m_title);
 }
@@ -3759,6 +3776,34 @@ void MusicInfo::deleteFont(){	/* フォントを削除 */
 	DeleteFontToHandle(m_fontHandleAchievement);
 }
 
+class MusicInfoTitleComp{
+  public:
+    bool operator () (const MusicInfo& left, const MusicInfo& right) const{
+      return strcmp(left.m_title, right.m_title) < 0;
+    }
+};
+
+class MusicInfoArtistComp{
+  public:
+    bool operator () (const MusicInfo& left, const MusicInfo& right) const{
+      return strcmp(left.m_artist, right.m_artist) < 0;
+    }
+};
+
+class MusicInfoLevelComp{
+  public:
+    bool operator () (const MusicInfo& left, const MusicInfo& right) const{
+      return left.m_level < right.m_level;
+    }
+};
+
+class MusicInfoAchievementComp{
+  public:
+    bool operator () (const MusicInfo& left, const MusicInfo& right) const{
+      return left.getAchievement() > right.getAchievement();
+      // 達成度が高い方が先
+    }
+};
 /* ============================================================ */
 
 vector<MusicInfo> g_infoArray;
@@ -3815,7 +3860,14 @@ public:
 	
 	void find(const char *buf);
 	void findNext();
+	void jump(int num);
 	void randomSelect();
+
+	void noSort();
+	void sortTitle();
+	void sortArtist();
+	void sortLevel();
+	void sortAchievement();
 };
 
 DrawMainInfo::DrawMainInfo(){
@@ -3942,7 +3994,7 @@ void DrawMainInfo::findNext(){
 		vector<MusicInfo>::iterator tmpItr = musicInfoItr;
 		do{
 			musicInfoItr = nextInfo(musicInfoItr);
-			if(musicInfoItr->titleCmp(m_findStr)){
+			if(musicInfoItr->titleFind(m_findStr)){
 				resetPos();
 				/* 検索したものは最初から中心に表示 */
 				break;
@@ -3951,9 +4003,48 @@ void DrawMainInfo::findNext(){
 	}
 }
 
+void DrawMainInfo::jump(int num){
+  if(num<=0 || num>musicInfoItr->m_numAll){
+    return;
+  }
+  while(musicInfoItr->m_num != num){
+    musicInfoItr = nextInfo(musicInfoItr);
+  }
+}
+
 void DrawMainInfo::randomSelect(){
 	musicInfoItr = randomInfo();
 	resetPos();
+}
+
+void DrawMainInfo::noSort(){
+  int num = musicInfoItr->m_num;
+  sort(g_infoArray.begin(), g_infoArray.end());
+  jump(num);
+}
+
+void DrawMainInfo::sortTitle(){
+  int num = musicInfoItr->m_num;
+  stable_sort(g_infoArray.begin(), g_infoArray.end(), MusicInfoTitleComp());
+  jump(num);
+}
+
+void DrawMainInfo::sortArtist(){
+  int num = musicInfoItr->m_num;
+  stable_sort(g_infoArray.begin(), g_infoArray.end(), MusicInfoArtistComp());
+  jump(num);
+}
+
+void DrawMainInfo::sortLevel(){
+  int num = musicInfoItr->m_num;
+  stable_sort(g_infoArray.begin(), g_infoArray.end(), MusicInfoLevelComp());
+  jump(num);
+}
+
+void DrawMainInfo::sortAchievement(){
+  int num = musicInfoItr->m_num;
+  stable_sort(g_infoArray.begin(), g_infoArray.end(), MusicInfoAchievementComp());
+  jump(num);
 }
 
 /* ============================================================ */
@@ -4035,10 +4126,10 @@ void drawMain(DrawMainInfo &dInfo, CChallenge &challenge,
 	DrawLine(0, 360, W_WINDOW, 360, GetColor(170, 170, 170));
 	
 	if(inputHandle == -1){	/* 検索時以外 */
-		DrawStringToHandle(10, 370, "↑/↓: 曲選択,   F: 検索, R: ランダム,   F5: 再読込,",
+		DrawStringToHandle(10, 370, "↑/↓: 曲選択,  F: 検索, 0～4:ソート, R: ランダム,  F5: 再読込,",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
-		DrawStringToHandle(10, 390, "←/→: 情報/ランキング表示, Tab: 全画面切替,",
+		DrawStringToHandle(10, 390, "←/→: 情報/ランキング表示,  Tab: 全画面切替",
 			GetColor(255, 255, 255), fontHandleDefault);
 		
 		{
@@ -4370,6 +4461,21 @@ bool main2(bool &isWindowMode, const char *name){
 					throw __LINE__;
 				}
 				SetActiveKeyInput(inputHandle);
+				break;
+			case '0':
+				dInfo.noSort();
+				break;
+			case '1':
+				dInfo.sortTitle();
+				break;
+			case '2':
+				dInfo.sortArtist();
+				break;
+			case '3':
+				dInfo.sortLevel();
+				break;
+			case '4':
+				dInfo.sortAchievement();
 				break;
 			case CTRL_CODE_F3:	/* 次を検索 */
 				dInfo.findNext();
