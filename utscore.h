@@ -4,7 +4,7 @@
 #include "utchallenge.h"
 #include "ututil.h"
 
-#define RANKING_FILE_VERSION 4
+#define RANKING_FILE_VERSION 5
 
 #define RANKING_LEN 20
 /* ランキングに記録する順位が何位までか */
@@ -47,6 +47,7 @@ public:
 	void write(FILE *fp)const;
 
 	int getLevel() const;
+	bool empty() const;
 	
 	void draw(int x, int y, int n, int fontHandle)const;
 	
@@ -173,6 +174,11 @@ int CScore::getLevel() const{
 	return SCORE_PERFECT;
 }
 
+bool CScore::empty() const{
+	if(m_score <= 0) return true;
+	else return false;
+}
+
 void CScore::draw(int x, int y, int n, int fontHandle)const{
 	char buf[256];
 	int color;
@@ -248,7 +254,7 @@ public:
 	void read();
 	void write();
 
-	int getScoreLevel() const;
+	int getAchievement() const;
 	
 	void draw(int x, int y, int rankBegin, int rankLen, int fontHandle);
 	void drawPlayData(int x, int y, int fontHandle);
@@ -257,7 +263,7 @@ private:
 	bool m_isChanged;
 	
 	CScore m_score[RANKING_LEN];
-	int m_scoreLevel;	/* 【achievement に変える予定】 */
+	int m_achievement;	/* 【scorelevel だった】 */
 	int m_playCount;
 	int m_playTime;
 };
@@ -279,7 +285,7 @@ int CRanking::update(const CScore &score, int achievement, bool f_checkDate, boo
 
 	{
 		//int achievement = score.getLevel();
-		if(achievement > m_scoreLevel) m_scoreLevel = achievement;
+		if(achievement > m_achievement) m_achievement = achievement;
 	}
 	
 	int lastRank = RANKING_LEN - 1;	/* すでに入っている順位（のうち最後のもの） */
@@ -355,6 +361,7 @@ void CRanking::read(){
 		for(int i=0; i<RANKING_LEN; i++){
 			m_score[i].init();
 		}
+		m_achievement = SCORE_NO_DATA;
 		m_playCount = 0;
 		m_playTime = 0;
 		return;
@@ -367,9 +374,9 @@ void CRanking::read(){
 		throw "新しいバージョンのランキングファイルです。プログラムを更新してください。";
 	}
 	if(version >= 4){
-		readInt(m_scoreLevel, m_fp);
+		readInt(m_achievement, m_fp);
 	}else{
-		m_scoreLevel = SCORE_NO_DATA;
+		m_achievement = SCORE_NO_DATA;
 	}
 	if(version >= 3){
 		readInt(m_playCount, m_fp);
@@ -378,14 +385,23 @@ void CRanking::read(){
 		m_playCount = 0;
 		m_playTime = 0;
 	}
+	int ranking_size;
+	if(version >= 5){
+		readInt(ranking_size, m_fp);
+	}else{
+		ranking_size = RANKING_LEN;
+	}
 	
-	for(int i=0; i<RANKING_LEN; i++){
+	for(int i=0; i<ranking_size; i++){
 		m_score[i].read(m_fp, version);
 	}
+	for(int i=ranking_size; i<RANKING_LEN; i++){
+		m_score[i].init();
+	}
 	if(version < 4){
-		for(int i=0; i<RANKING_LEN; i++){
+		for(int i=0; i<ranking_size; i++){
 			int l = m_score->getLevel();
-			if(l > m_scoreLevel) m_scoreLevel = l;
+			if(l > m_achievement) m_achievement = l;
 		}
 	}
 
@@ -393,31 +409,38 @@ void CRanking::read(){
 	return;
 }
 
+#include<io.h>
+
 void CRanking::write(){
-#if 0
 	if(!m_isChanged){
 		return;
 	}
-#endif
 //printfDx("%d\n",m_isChanged);
 	m_isChanged = false;	/* 更新部分は書き込まれる */
 	
 	rewind(m_fp);
 	writeInt(RANKING_FILE_VERSION, m_fp);
 	
-	writeInt(m_scoreLevel, m_fp);
+	writeInt(m_achievement, m_fp);
 
 	writeInt(m_playCount, m_fp);
 	writeInt(m_playTime, m_fp);
+
+	int cnt=0;
+	while(cnt<RANKING_LEN && !m_score[cnt].empty()) cnt++;
+	/* どこまでスコアが埋まっているか */
+
+	writeInt(cnt, m_fp);
 	
-	for(int i=0; i<RANKING_LEN; i++){
+	for(int i=0; i<cnt; i++){
 		m_score[i].write(m_fp);
 	}
+	/* 【 ftruncateがないために後ろにゴミが残るが我慢 】 */
 	rewind(m_fp);
 }
 
-int CRanking::getScoreLevel() const{
-	return m_scoreLevel;
+int CRanking::getAchievement() const{
+	return m_achievement;
 }
 
 /* rankBeginからrankLen位分表示 */
