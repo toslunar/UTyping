@@ -1,0 +1,6 @@
+music\hutarikiri\info.txt
+music\kimigaite\info.txt
+music\gen\info.txt
+music\zento\info.txt
+music\concyclic\info.txt
+music\mcircle\info.txt
