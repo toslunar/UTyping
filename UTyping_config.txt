@@ -1,13 +1,13 @@
 LoadSoundType=1
-Volume=32
+Volume=default
 DefaultReplayFile=default.rep
 OverwriteReplay=query
 RankingCheckDate=false
 RankingCheckChallenge=true
-FailByGauge=true
+FailByGauge=false
 FullScreen=false
-ShowFPS=true
+ShowFPS=false
 WaitVSync=true
 DebugMode=false
-DebugTime=2000
+DebugTime=0
 ShowProcessTime=false
