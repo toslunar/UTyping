@@ -952,53 +952,97 @@ public:
 	double timeBegin;	/* 表示が始まる時間 */
 	double timeEnd;	/* 表示が終わる時間 */
 public:
-	void draw(int x, int y, int fontHandle) const;
+	void draw(int x, int y, int fontHandle, double time, double timeL) const;
+	/* Next: に表示され始めてから、直前の歌詞が消えるまでの時間のうちどれだけ進んだか */
 private:
 	int getDrawColor(bool flag) const;
 };
 
-void LyricsKanji::draw(int x, int y, int fontHandle) const{
-	char buf[256], *ptr1;
-	const char *ptr2;
+void LyricsKanji::draw(int x, int y, int fontHandle, double time=-1.0, double timeL=-1.0) const{
+	char buf[256];
+	int colo[256];
+	int len=0;
 	bool flag = true;	/* 普通に書く(true)か、灰色で書く(false)か */
-	ptr1 = buf;
-	ptr2 = this->str;
-	while(*ptr2 != '\0'){
-		if(*ptr2 == '\\'){
-			ptr2++;
-			switch(*ptr2){
-			case '\0':	/* *ptr2を0のままにしてwhileからこのまま抜ける */
-				break;
+	for(const char *ptr = this->str; *ptr!='\0'; ptr++){
+		if(*ptr == '\\'){
+			ptr++;
+			switch(*ptr){
+			case '\0':
+				break;	/* \で終了したらそれは無視 */
 			case '|':	/* ここで、色を変更 */
-				{
-					*ptr1 = '\0';
-					int len = strlen(buf);
-					int width = GetDrawStringWidthToHandle(buf, len, fontHandle);
-					DrawStringToHandle(x, y, buf,
-						getDrawColor(flag), fontHandle);
-					x += width;
-					ptr2++;
-					ptr1 = buf;
-					flag = !flag;
-				}
+				flag = !flag;
 				break;
 			default:
-				*ptr1++ = *ptr2++;
+				buf[len]=*ptr;
+				colo[len]=getDrawColor(flag);
+				len++;
 				break;
 			}
-		}else if(isJapanese1st(*ptr2)){
-			*ptr1++ = *ptr2++;
-			if(*ptr2 == '\0'){
-				break;
+		}else if(isJapanese1st(*ptr)){
+			buf[len]=*ptr;
+			colo[len]=0;	/* 次と同時に処理するという意味 */
+			len++;
+			ptr++;
+			if(*ptr == '\0'){
+				throw __LINE__;
 			}
-			*ptr1++ = *ptr2++;
+			buf[len]=*ptr;
+			colo[len]=getDrawColor(flag);
+			len++;
 		}else{
-			*ptr1++ = *ptr2++;
+			buf[len]=*ptr;
+			colo[len]=getDrawColor(flag);
+			len++;
 		}
 	}
-	*ptr1 = '\0';
-	DrawStringToHandle(x, y, buf,
-		getDrawColor(flag), fontHandle);
+	buf[len]='\0';
+	if(len==0) return;  /* 描く文字がないので終了。0除算回避 */
+	double drawLen;
+	if(timeL<0.){
+		drawLen=len;
+	}else{
+		timeL /= 3.;
+		/* 1/3までには終えているようにする */
+		double tL = len*0.040;	/* 1文字あたりの秒数 */
+		if(tL>timeL) tL=timeL;
+		double r = time/tL;
+		if(r>1.) r=1.;
+		r+=0.7*r*(1.-r);
+		drawLen = len*r;
+	}
+	//for(int i=0; i<len; i++){
+	//printfDx("%d ",colo[i]);
+	//}
+	//printfDx("\n");
+	for(int i=0; i<len; ){
+		if(i>drawLen) break;
+		int j=i;
+		int c;
+		while((c=colo[j])==0){	/* 2バイト文字 */
+			j++;
+		}
+		j++;	/* 描画の終端 */
+		char ch=buf[j];	/* '\0'に書き換えるので一時保管 */
+		buf[j]='\0';
+		if(j<=drawLen){
+			int width = GetDrawStringWidthToHandle(&buf[i], j-i, fontHandle);
+			DrawStringToHandle(x, y, &buf[i], c, fontHandle);
+			x += width;
+		}else{
+			int width = GetDrawStringWidthToHandle(&buf[i], j-i, fontHandle);
+			double r=(drawLen-i)/(j-i);
+			SetDrawBlendMode(DX_BLENDMODE_ALPHA, (int)(255*r*r));
+				/* 途中なら半透明に */
+			//int dy = (int)(4.5*(1.-r));	/* 少し下から出してみたり */
+			//DrawStringToHandle(x, y+dy, &buf[i], c, fontHandle);
+			double ExRate = 1.+1.5*(1.-r);
+			DrawExtendStringToHandle(x, y-(int)(16*(ExRate-1.)/2), 1, ExRate, &buf[i], c, fontHandle);
+			x += width;
+			SetDrawBlendMode(DX_BLENDMODE_NOBLEND, 0);
+		}
+		buf[j]=ch;
+		i=j;
+	}
 	return;
 }
 
@@ -3017,7 +3061,10 @@ void CTyping::draw(){
 			(*m_lyricsKanjiPosition).draw(
 				X_LYRICS_KANJI, Y_LYRICS_KANJI, m_fontHandleNormal);	/* 出力 */
 			(*(m_lyricsKanjiPosition + 1)).draw(
-				X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT, m_fontHandleNormal);	/* Nextを出力 */
+				X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT, m_fontHandleNormal,
+				time - m_lyricsKanjiPosition->timeBegin,
+				m_lyricsKanjiPosition->timeEnd - m_lyricsKanjiPosition->timeBegin);	/* Nextを出力 */
+			/* 現在の歌詞が表示し終わるまでの間に左から描画、処理落ち対策にも */
 		}else{
 			(*m_lyricsKanjiPosition).draw(
 				X_LYRICS_KANJI, Y_LYRICS_KANJI_NEXT, m_fontHandleNormal);	/* Nextを出力 */
@@ -4534,7 +4581,7 @@ void drawTitle(int fontHandleTitle, int fontHandleCopyright, int fontHandleInfo,
 			GetColor(255, 255, 255), fontHandleTitle, GetColor(170, 170, 170));
 	}
 	{
-		const char *strCopyright = "(c)2007-2008 tos";
+		const char *strCopyright = "(c)2007-2010 tos";
 		int strWidth = GetDrawStringWidthToHandle(strCopyright, strlen(strCopyright), fontHandleCopyright);
 		DrawStringToHandle(W_WINDOW - 10 - strWidth, H_WINDOW - 10 - 12, strCopyright,
 			GetColor(255, 255, 255), fontHandleCopyright);
